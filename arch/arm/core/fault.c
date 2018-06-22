@@ -17,6 +17,7 @@
 #include <kernel.h>
 #include <kernel_structs.h>
 #include <inttypes.h>
+#include <exc_handle.h>
 
 #ifdef CONFIG_PRINTK
 #include <misc/printk.h>
@@ -164,13 +165,34 @@ static void _FaultShow(const NANO_ESF *esf, int fault)
 /* HardFault is used for all fault conditions on ARMv6-M. */
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
 
+#ifdef CONFIG_USERSPACE
+Z_EXC_DECLARE(z_arch_user_string_nlen);
+
+static const struct z_exc_handle exceptions[] = {
+	Z_EXC_HANDLE(z_arch_user_string_nlen)
+};
+#endif
+
 /* Perform an assessment whether an MPU fault shall be
  * treated as recoverable.
  *
  * @return 1 if error is recoverable, otherwise return 0.
  */
-static int _MpuFaultIsRecoverable(const NANO_ESF *esf)
+static int _MemoryFaultIsRecoverable(NANO_ESF *esf)
 {
+#ifdef CONFIG_USERSPACE
+	for (int i = 0; i < ARRAY_SIZE(exceptions); i++) {
+		/* Mask out instruction mode */
+		u32_t start = (u32_t)exceptions[i].start & ~0x1;
+		u32_t end = (u32_t)exceptions[i].end & ~0x1;
+
+		if (esf->pc >= start && esf->pc < end) {
+			esf->pc = (u32_t)(exceptions[i].fixup);
+			return 1;
+		}
+	}
+#endif
+
 	return 0;
 }
 
@@ -182,12 +204,12 @@ static int _MpuFaultIsRecoverable(const NANO_ESF *esf)
  *
  * @return error code to identify the fatal error reason
  */
-static u32_t _MpuFault(const NANO_ESF *esf, int fromHardFault)
+static u32_t _MpuFault(NANO_ESF *esf, int fromHardFault)
 {
 	u32_t reason = _NANO_ERR_HW_EXCEPTION;
 
 	/* Assess whether system shall ignore/recover from this MPU fault. */
-	if (_MpuFaultIsRecoverable(esf)) {
+	if (_MemoryFaultIsRecoverable(esf)) {
 		return _NANO_ERR_RECOVERABLE;
 	}
 
@@ -268,8 +290,13 @@ static u32_t _MpuFault(const NANO_ESF *esf, int fromHardFault)
  *
  * @return N/A
  */
-static void _BusFault(const NANO_ESF *esf, int fromHardFault)
+static int _BusFault(NANO_ESF *esf, int fromHardFault)
 {
+	/* Assess whether system shall ignore/recover from this MPU fault. */
+	if (_MemoryFaultIsRecoverable(esf)) {
+		return _NANO_ERR_RECOVERABLE;
+	}
+
 	PR_FAULT_INFO("***** BUS FAULT *****\n");
 
 	if (SCB->CFSR & SCB_CFSR_STKERR_Msk) {
@@ -342,6 +369,8 @@ static void _BusFault(const NANO_ESF *esf, int fromHardFault)
 	/* clear BSFR sticky bits */
 	SCB->CFSR |= SCB_CFSR_BUSFAULTSR_Msk;
 #endif /* CONFIG_ARMV8_M_MAINLINE */
+
+	return _NANO_ERR_HW_EXCEPTION;
 }
 
 /**
@@ -463,7 +492,7 @@ static void _DebugMonitor(const NANO_ESF *esf)
  *
  * @return error code to identify the fatal error reason
  */
-static u32_t _HardFault(const NANO_ESF *esf)
+static u32_t _HardFault(NANO_ESF *esf)
 {
 	u32_t reason = _NANO_ERR_HW_EXCEPTION;
 
@@ -478,7 +507,7 @@ static u32_t _HardFault(const NANO_ESF *esf)
 		if (SCB_MMFSR) {
 			reason = _MpuFault(esf, 1);
 		} else if (SCB_BFSR) {
-			_BusFault(esf, 1);
+			reason = _BusFault(esf, 1);
 		} else if (SCB_UFSR) {
 			reason = _UsageFault(esf);
 #if defined(CONFIG_ARM_SECURE_FIRMWARE)
@@ -512,7 +541,7 @@ static void _ReservedException(const NANO_ESF *esf, int fault)
 }
 
 /* Handler function for ARM fault conditions. */
-static u32_t _FaultHandle(const NANO_ESF *esf, int fault)
+static u32_t _FaultHandle(NANO_ESF *esf, int fault)
 {
 	u32_t reason = _NANO_ERR_HW_EXCEPTION;
 
@@ -527,7 +556,7 @@ static u32_t _FaultHandle(const NANO_ESF *esf, int fault)
 		reason = _MpuFault(esf, 0);
 		break;
 	case 5:
-		_BusFault(esf, 0);
+		reason = _BusFault(esf, 0);
 		break;
 	case 6:
 		reason = _UsageFault(esf);
