@@ -230,6 +230,10 @@ static int thread_index_get(struct k_thread *t)
 
 static void unref_check(struct _k_object *ko)
 {
+	if (ko->refcount > 0) {
+		return;
+	}
+
 	for (int i = 0; i < CONFIG_MAX_THREAD_BYTES; i++) {
 		if (ko->perms[i]) {
 			return;
@@ -410,31 +414,48 @@ void k_object_access_all_grant(void *object)
 int _k_object_validate(struct _k_object *ko, enum k_objects otype,
 		       enum _obj_init_check init)
 {
+	int ret;
+
 	if (unlikely(!ko || (otype != K_OBJ_ANY && ko->type != otype))) {
-		return -EBADF;
+		ret -EBADF;
+		goto out;
 	}
 
 	/* Manipulation of any kernel objects by a user thread requires that
 	 * thread be granted access first, even for uninitialized objects
 	 */
 	if (unlikely(!thread_perms_test(ko))) {
-		return -EPERM;
+		ret = -EPERM;
+		goto out;
 	}
 
 	/* Initialization state checks. _OBJ_INIT_ANY, we don't care */
 	if (likely(init == _OBJ_INIT_TRUE)) {
 		/* Object MUST be intialized */
 		if (unlikely(!(ko->flags & K_OBJ_FLAG_INITIALIZED))) {
-			return -EINVAL;
+			ret = -EINVAL;
+			goto out;
 		}
 	} else if (init < _OBJ_INIT_TRUE) { /* _OBJ_INIT_FALSE case */
 		/* Object MUST NOT be initialized */
 		if (unlikely(ko->flags & K_OBJ_FLAG_INITIALIZED)) {
-			return -EADDRINUSE;
+			ret = -EADDRINUSE;
+			goto out;
 		}
 	}
 
-	return 0;
+	ret = 0;
+out:
+	return ret;
+}
+
+void z_k_object_unref(struct _k_object *ko)
+{
+	int key = irq_lock();
+
+	__ASSERT(ko->refcount > 0, "no references to object %p\n", ko->name);
+	ko->refcount--;
+	irq_unlock(key);
 }
 
 void _k_object_init(void *object)
@@ -592,14 +613,6 @@ out:
  * Default handlers if otherwise unimplemented
  */
 
-static u32_t handler_bad_syscall(u32_t bad_id, u32_t arg2, u32_t arg3,
-				  u32_t arg4, u32_t arg5, u32_t arg6, void *ssf)
-{
-	printk("Bad system call id %u invoked\n", bad_id);
-	_arch_syscall_oops(ssf);
-	CODE_UNREACHABLE;
-}
-
 static u32_t handler_no_syscall(u32_t arg1, u32_t arg2, u32_t arg3,
 				 u32_t arg4, u32_t arg5, u32_t arg6, void *ssf)
 {
@@ -607,6 +620,82 @@ static u32_t handler_no_syscall(u32_t arg1, u32_t arg2, u32_t arg3,
 	_arch_syscall_oops(ssf);
 	CODE_UNREACHABLE;
 }
+
+u32_t z_syscall_dispatch(u32_t arg1, u32_t arg2, u32_t arg3, u32_t arg4,
+			 u32_t arg5, u32_t arg6, void *ssf, u32_t call_id)
+{
+	struct z_syscall_dispatch *dispatch;
+	int obj_addr;
+	struct _k_object *obj;
+	int err, validation, key;
+	u32_t ret;
+
+	/* Validate the call ID */
+	if (call_id >= K_SYSCALL_LIMIT) {
+		printk("Bad system call id %u invoked\n", call_id);
+		_arch_syscall_oops(ssf);
+		CODE_UNREACHABLE;
+	}
+
+	dispatch = &_k_syscall_table[call_id];
+	switch (dispatch->obj_arg) {
+	case 0:
+		obj = NULL;
+		goto no_object;
+	case 1:
+		obj_addr = arg1;
+		break;
+	case 2:
+		obj_addr = arg2;
+		break;
+	case 3:
+		obj_addr = arg3;
+		break;
+	case 4:
+		obj_addr = arg4;
+		break;
+	case 5:
+		obj_addr = arg5;
+		break;
+	case 6:
+		obj_addr = arg6;
+		break;
+	}
+
+	key = irq_lock();
+
+	obj = _k_object_find((void *)obj_addr);
+	validation = _k_object_validate(obj, dispatch->obj_type,
+					dispatch->obj_flags);
+	if (validation) {
+#ifdef CONFIG_PRINTK
+		_dump_object_error(validation, (void *)obj_addr, obj,
+				   dispatch->obj_type);
+#endif
+		_arch_syscall_oops(ssf);
+		CODE_UNREACHABLE;
+	}
+	obj->refcount++;
+	irq_unlock(key);
+
+no_object:
+	ret = dispatch->handler(arg1, arg2, arg3, arg4, arg5, arg6, &err);
+
+	if (obj) {
+		key = irq_lock();
+		obj->refcount--;
+		unref_check(obj);
+		irq_unlock(key);
+	}
+
+	if (err) {
+		_arch_syscall_oops(ssf);
+		CODE_UNREACHABLE;
+	}
+
+	return ret;
+}
+
 
 #include <syscall_dispatch.c>
 

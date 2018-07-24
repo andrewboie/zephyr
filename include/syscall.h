@@ -111,6 +111,21 @@ extern "C" {
 typedef u32_t (*_k_syscall_handler_t)(u32_t arg1, u32_t arg2, u32_t arg3,
 				      u32_t arg4, u32_t arg5, u32_t arg6,
 				      void *ssf);
+
+struct z_syscall_dispatch {
+	/* Handler function address */
+	_k_syscall_handler_t handler;
+
+	/* Object argument position, must be 1-6, 0 means no object */
+	u8_t obj_arg;
+
+	/* Flags relation to validation of this object */
+	u8_t obj_flags;
+
+	/* Expected type of object K_OBJ_nnn */
+	u16_t obj_type;
+} __packed;
+
 #ifdef CONFIG_USERSPACE
 
 /**

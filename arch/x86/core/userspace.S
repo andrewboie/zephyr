@@ -28,16 +28,10 @@ SECTION_FUNC(TEXT, _x86_syscall_entry_stub)
 	sti			/* re-enable interrupts */
 	cld			/* clear direction flag, restored on 'iret' */
 
-	/* call_id is in ESI. bounds-check it, must be less than
-	 * K_SYSCALL_LIMIT
-	 */
-	cmp	$_SYSCALL_LIMIT, %esi
-	jae	_bad_syscall
-
-_id_ok:
 	/* Marshal arguments per calling convention to match what is expected
 	 * for _k_syscall_handler_t functions
 	 */
+	push	%esi		/* call ID */
 	push	%esp		/* ssf */
 	push	%ebp		/* arg6 */
 	push	%edi		/* arg5 */
@@ -48,14 +42,7 @@ _id_ok:
 	push	%eax		/* arg1 */
 #endif
 
-	/* from the call ID in ESI, load EBX with the actual function pointer
-	 * to call by looking it up in the system call dispatch table
-	 */
-	xor	%edi, %edi
-	mov	_k_syscall_table(%edi, %esi, 4), %ebx
-
-	/* Run the handler, which is some entry in _k_syscall_table */
-	INDIRECT_CALL(%ebx)
+	call	z_syscall_dispatch
 
 	/* EAX now contains return value. Pop or xor everything else to prevent
 	 * information leak from kernel mode.
@@ -74,18 +61,8 @@ _id_ok:
 	pop	%ecx		/* Clean ECX and get arg6 off the stack */
 	pop	%edx		/* Clean EDX and get ssf off the stack */
 #endif
+	pop	%esi		/* Restore ESI */
 	iret
-
-_bad_syscall:
-	/* ESI had a bogus syscall value in it, replace with the bad syscall
-	 * handler's ID, and put the bad ID as its first argument.  This
-	 * clobbers ESI but the bad syscall handler never returns
-	 * anyway, it's going to generate a kernel oops
-	 */
-	mov	%esi, %eax
-	mov	$_SYSCALL_BAD, %esi
-	jmp	_id_ok
-
 
 /*
  * size_t z_arch_user_string_nlen(const char *s, size_t maxsize, int *err_arg)

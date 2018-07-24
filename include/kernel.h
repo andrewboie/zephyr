@@ -158,6 +158,7 @@ struct _k_object {
 	u8_t type;
 	u8_t flags;
 	u32_t data;
+	u32_t refcount;   /* TODO: union with data field somehow */
 } __packed __aligned(4);
 
 struct _k_object_assignment {
