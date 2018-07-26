@@ -117,6 +117,7 @@
 #else
 #define __syscall
 #endif /* #ifndef ZTEST_UNITTEST */
+#define __kobj
 
 #ifndef BUILD_ASSERT
 /* compile-time assertion that makes the build fail */

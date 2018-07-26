@@ -75,7 +75,6 @@ void _impl_k_sem_init(struct k_sem *sem, unsigned int initial_count,
 #ifdef CONFIG_USERSPACE
 Z_SYSCALL_HANDLER(k_sem_init, sem, initial_count, limit)
 {
-	Z_OOPS(Z_SYSCALL_OBJ_INIT(sem, K_OBJ_SEM));
 	Z_OOPS(Z_SYSCALL_VERIFY(limit != 0 && initial_count <= limit));
 	_impl_k_sem_init((struct k_sem *)sem, initial_count, limit);
 	return 0;

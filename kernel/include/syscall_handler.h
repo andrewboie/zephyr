@@ -238,7 +238,8 @@ extern int z_user_string_copy(char *dst, char *src, size_t maxlen);
 #define Z_OOPS(expr) \
 	do { \
 		if (expr) { \
-			_arch_syscall_oops(ssf); \
+			*err_ = 1; \
+			return 0; \
 		} \
 	} while (0)
 
@@ -463,11 +464,11 @@ static inline int _obj_validation_check(struct _k_object *ko,
  * All handlers have the same prototype:
  *
  * u32_t _handler_APINAME(u32_t arg1, u32_t arg2, u32_t arg3,
- *			  u32_t arg4, u32_t arg5, u32_t arg6, void *ssf);
+ *			  u32_t arg4, u32_t arg5, u32_t arg6, int *err_);
  *
  * These make it much simpler to define handlers instead of typing out
  * the bolierplate. The macros ensure that the seventh argument is named
- * "ssf" as this is now referenced by various other _SYSCALL macros.
+ * "_err" as this is now referenced by various other _SYSCALL macros.
  *
  * Use the _SYSCALL_HANDLER(name_, arg0, ..., arg6) variant, as it will
  * automatically deduce the correct version of __SYSCALL_HANDLERn() to
@@ -481,7 +482,7 @@ static inline int _obj_validation_check(struct _k_object *ko,
 				 u32_t arg4 __unused, \
 				 u32_t arg5 __unused, \
 				 u32_t arg6 __unused, \
-				 void *ssf)
+				 int *err_)
 
 #define __SYSCALL_HANDLER1(name_, arg1_) \
 	u32_t _handler_ ## name_(u32_t arg1_, \
@@ -490,7 +491,7 @@ static inline int _obj_validation_check(struct _k_object *ko,
 				 u32_t arg4 __unused, \
 				 u32_t arg5 __unused, \
 				 u32_t arg6 __unused, \
-				 void *ssf)
+				 int *err_)
 
 #define __SYSCALL_HANDLER2(name_, arg1_, arg2_) \
 	u32_t _handler_ ## name_(u32_t arg1_, \
@@ -499,7 +500,7 @@ static inline int _obj_validation_check(struct _k_object *ko,
 				 u32_t arg4 __unused, \
 				 u32_t arg5 __unused, \
 				 u32_t arg6 __unused, \
-				 void *ssf)
+				 int *err_)
 
 #define __SYSCALL_HANDLER3(name_, arg1_, arg2_, arg3_) \
 	u32_t _handler_ ## name_(u32_t arg1_, \
@@ -508,7 +509,7 @@ static inline int _obj_validation_check(struct _k_object *ko,
 				 u32_t arg4 __unused, \
 				 u32_t arg5 __unused, \
 				 u32_t arg6 __unused, \
-				 void *ssf)
+				 int *err_)
 
 #define __SYSCALL_HANDLER4(name_, arg1_, arg2_, arg3_, arg4_) \
 	u32_t _handler_ ## name_(u32_t arg1_, \
@@ -517,7 +518,7 @@ static inline int _obj_validation_check(struct _k_object *ko,
 				 u32_t arg4_, \
 				 u32_t arg5 __unused, \
 				 u32_t arg6 __unused, \
-				 void *ssf)
+				 int *err_)
 
 #define __SYSCALL_HANDLER5(name_, arg1_, arg2_, arg3_, arg4_, arg5_) \
 	u32_t _handler_ ## name_(u32_t arg1_, \
@@ -526,7 +527,7 @@ static inline int _obj_validation_check(struct _k_object *ko,
 				 u32_t arg4_, \
 				 u32_t arg5_, \
 				 u32_t arg6 __unused, \
-				 void *ssf)
+				 int *err_)
 
 #define __SYSCALL_HANDLER6(name_, arg1_, arg2_, arg3_, arg4_, arg5_, arg6_) \
 	u32_t _handler_ ## name_(u32_t arg1_, \
@@ -535,7 +536,7 @@ static inline int _obj_validation_check(struct _k_object *ko,
 				 u32_t arg4_, \
 				 u32_t arg5_, \
 				 u32_t arg6_, \
-				 void *ssf)
+				 int *err_)
 
 #define _SYSCALL_CONCAT(arg1, arg2) __SYSCALL_CONCAT(arg1, arg2)
 #define __SYSCALL_CONCAT(arg1, arg2) ___SYSCALL_CONCAT(arg1, arg2)
@@ -556,15 +557,13 @@ static inline int _obj_validation_check(struct _k_object *ko,
  * and call the implementation.
  */
 
-#define Z_SYSCALL_HANDLER1_SIMPLE(name_, obj_enum_, obj_type_) \
+#define Z_SYSCALL_HANDLER1_SIMPLE(name_, obj_type_) \
 	__SYSCALL_HANDLER1(name_, arg1) { \
-		Z_OOPS(Z_SYSCALL_OBJ(arg1, obj_enum_)); \
 		return (u32_t)_impl_ ## name_((obj_type_)arg1); \
 	}
 
-#define Z_SYSCALL_HANDLER1_SIMPLE_VOID(name_, obj_enum_, obj_type_) \
+#define Z_SYSCALL_HANDLER1_SIMPLE_VOID(name_, obj_type_) \
 	__SYSCALL_HANDLER1(name_, arg1) { \
-		Z_OOPS(Z_SYSCALL_OBJ(arg1, obj_enum_)); \
 		_impl_ ## name_((obj_type_)arg1); \
 		return 0; \
 	}

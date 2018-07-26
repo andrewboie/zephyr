@@ -417,7 +417,7 @@ int _k_object_validate(struct _k_object *ko, enum k_objects otype,
 	int ret;
 
 	if (unlikely(!ko || (otype != K_OBJ_ANY && ko->type != otype))) {
-		ret -EBADF;
+		ret = -EBADF;
 		goto out;
 	}
 
@@ -614,20 +614,24 @@ out:
  */
 
 static u32_t handler_no_syscall(u32_t arg1, u32_t arg2, u32_t arg3,
-				 u32_t arg4, u32_t arg5, u32_t arg6, void *ssf)
+				 u32_t arg4, u32_t arg5, u32_t arg6, int *err)
 {
 	printk("Unimplemented system call\n");
-	_arch_syscall_oops(ssf);
-	CODE_UNREACHABLE;
+	*err = 1;
+	return 0;
 }
+
+/* Pull in auto-generated syscall_table */
+#include <syscall_dispatch.c>
 
 u32_t z_syscall_dispatch(u32_t arg1, u32_t arg2, u32_t arg3, u32_t arg4,
 			 u32_t arg5, u32_t arg6, void *ssf, u32_t call_id)
 {
-	struct z_syscall_dispatch *dispatch;
+	const struct z_syscall_dispatch *dispatch;
 	int obj_addr;
 	struct _k_object *obj;
-	int err, validation, key;
+	int err = 0;
+	int validation, key;
 	u32_t ret;
 
 	/* Validate the call ID */
@@ -637,11 +641,8 @@ u32_t z_syscall_dispatch(u32_t arg1, u32_t arg2, u32_t arg3, u32_t arg4,
 		CODE_UNREACHABLE;
 	}
 
-	dispatch = &_k_syscall_table[call_id];
+	dispatch = &syscall_table[call_id];
 	switch (dispatch->obj_arg) {
-	case 0:
-		obj = NULL;
-		goto no_object;
 	case 1:
 		obj_addr = arg1;
 		break;
@@ -660,6 +661,9 @@ u32_t z_syscall_dispatch(u32_t arg1, u32_t arg2, u32_t arg3, u32_t arg4,
 	case 6:
 		obj_addr = arg6;
 		break;
+	default:
+		obj = NULL;
+		goto no_object;
 	}
 
 	key = irq_lock();
@@ -684,6 +688,11 @@ no_object:
 	if (obj) {
 		key = irq_lock();
 		obj->refcount--;
+
+		/* TODO cleanup actions might be time-consuming. After checks
+		 * done, mark object as pending deletion, unlock IRQs, and then
+		 * delete it with interrupts enabled
+		 */
 		unref_check(obj);
 		irq_unlock(key);
 	}
@@ -695,7 +704,4 @@ no_object:
 
 	return ret;
 }
-
-
-#include <syscall_dispatch.c>
 

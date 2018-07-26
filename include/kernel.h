@@ -2978,7 +2978,8 @@ struct k_sem {
  * @return N/A
  * @req K-SEM-001
  */
-__syscall void k_sem_init(struct k_sem *sem, unsigned int initial_count,
+__syscall void k_sem_init(__kobject(struct k_sem *sem, K_OBJ_SEM, 0),
+			  unsigned int initial_count,
 			  unsigned int limit);
 
 /**
@@ -3003,7 +3004,7 @@ __syscall void k_sem_init(struct k_sem *sem, unsigned int initial_count,
  * @retval -EAGAIN Waiting period timed out.
  * @req K-SEM-001
  */
-__syscall int k_sem_take(struct k_sem *sem, s32_t timeout);
+__syscall int k_sem_take(__kobj struct k_sem *sem, s32_t timeout);
 
 /**
  * @brief Give a semaphore.
@@ -3018,7 +3019,7 @@ __syscall int k_sem_take(struct k_sem *sem, s32_t timeout);
  * @return N/A
  * @req K-SEM-001
  */
-__syscall void k_sem_give(struct k_sem *sem);
+__syscall void k_sem_give(__kobj struct k_sem *sem);
 
 /**
  * @brief Reset a semaphore's count to zero.
@@ -3030,7 +3031,7 @@ __syscall void k_sem_give(struct k_sem *sem);
  * @return N/A
  * @req K-SEM-001
  */
-__syscall void k_sem_reset(struct k_sem *sem);
+__syscall void k_sem_reset(__kobj struct k_sem *sem);
 
 /**
  * @internal

@@ -102,15 +102,15 @@ extern "C" {
  * @param arg4 system call argument 4
  * @param arg5 system call argument 5
  * @param arg6 system call argument 6
- * @param ssf System call stack frame pointer. Used to generate kernel oops
- *            via _arch_syscall_oops_at(). Contents are arch-specific.
+ * @param err Error return value, to indicate to dispatch code that the syscall
+ *	      failed
  * @return system call return value, or 0 if the system call implementation
  *         return void
  *
  */
 typedef u32_t (*_k_syscall_handler_t)(u32_t arg1, u32_t arg2, u32_t arg3,
 				      u32_t arg4, u32_t arg5, u32_t arg6,
-				      void *ssf);
+				      int *err);
 
 struct z_syscall_dispatch {
 	/* Handler function address */
