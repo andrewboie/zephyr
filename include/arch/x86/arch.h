@@ -34,8 +34,13 @@ extern "C" {
 /* GDT layout */
 #define CODE_SEG	0x08
 #define DATA_SEG	0x10
+#ifdef CONFIG_USERSPACE
+#define MAIN_TSS	0x28
+#define DF_TSS		0x30
+#else
 #define MAIN_TSS	0x18
 #define DF_TSS		0x20
+#endif /* CONFIG_USERSPACE */
 
 /**
  * Macro used internally by NANO_CPU_INT_REGISTER and NANO_CPU_INT_REGISTER_ASM.

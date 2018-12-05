@@ -166,24 +166,24 @@ def main():
         fp.write(create_code_data_entry(0, 0xFFFFF, 0,
                                         FLAGS_GRAN, ACCESS_RW))
 
+        if num_entries == 7:
+            # Selector 0x18: code descriptor, dpl = 3
+            fp.write(create_code_data_entry(0, 0xFFFFF, 3,
+                                            FLAGS_GRAN, ACCESS_EX | ACCESS_RW))
+
+            # Selector 0x20: data descriptor, dpl = 3
+            fp.write(create_code_data_entry(0, 0xFFFFF, 3,
+                                            FLAGS_GRAN, ACCESS_RW))
         if num_entries >= 5:
             main_tss = syms["_main_tss"]
             df_tss = syms["_df_tss"]
 
-            # Selector 0x18: main TSS
+            # Selector 0x28: main TSS
             fp.write(create_tss_entry(main_tss, 0x67, 0))
 
-            # Selector 0x20: double-fault TSS
+            # Selector 0x30: double-fault TSS
             fp.write(create_tss_entry(df_tss, 0x67, 0))
 
-        if num_entries == 7:
-            # Selector 0x28: code descriptor, dpl = 3
-            fp.write(create_code_data_entry(0, 0xFFFFF, 3,
-                                            FLAGS_GRAN, ACCESS_EX | ACCESS_RW))
-
-            # Selector 0x30: data descriptor, dpl = 3
-            fp.write(create_code_data_entry(0, 0xFFFFF, 3,
-                                            FLAGS_GRAN, ACCESS_RW))
 
 
 if __name__ == "__main__":
