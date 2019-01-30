@@ -192,7 +192,7 @@ SECTION_FUNC(TEXT, _x86_userspace_enter)
 	mov	%ebx, %esp
 
 	/* Set segment registers (except CS and SS which are done in
-	 * a special way by 'iret' below)
+	 * a special way by 'iret'/'sysenter' below)
 	 */
 	mov	$USER_DATA_SEG, %bx
 	mov	%bx, %ds
@@ -200,14 +200,30 @@ SECTION_FUNC(TEXT, _x86_userspace_enter)
 
 	/* Push arguments to _thread_entry() */
 	push	%esi	/* p3 */
-#ifndef CONFIG_X86_IAMCU
 	push	%ecx	/* p2 */
 	push	%edx	/* p1 */
 	push	%eax	/* user_entry */
-#endif
+
 	/* NULL return address */
 	push	$0
 
+#ifdef CONFIG_EXECUTION_BENCHMARKING
+	rdtsc
+	mov %eax,__end_drop_to_usermode_time
+	mov %edx,__end_drop_to_usermode_time+4
+#endif /* CONFIG_EXECUTION_BENCHMARKING */
+
+#ifdef CONFIG_X86_SYSENTER
+	/* sysenter expects desired EIP = EDX, ESP = ECX */
+#ifdef CONFIG_X86_IAMCU
+	mov	$z_x86_iamcu_trampoline, %edx
+#else
+	mov	$_thread_entry, %edx
+#endif /* CONFIG_X86_IAMCU */
+	mov	%esp, %ecx
+
+	sysexit
+#else /* old syscall method */
 	/* Save stack pointer at this position, this is where it will be
 	 * when we land in _thread_entry()
 	 */
@@ -221,20 +237,19 @@ SECTION_FUNC(TEXT, _x86_userspace_enter)
 	push	%edi		/* ESP */
 	pushfl			/* EFLAGS */
 	push	$USER_CODE_SEG	/* CS */
+#ifdef CONFIG_X86_IAMCU
+	push	$z_x86_iamcu_trampoline
+#else
 	push	$_thread_entry	/* EIP */
-
-#ifdef CONFIG_EXECUTION_BENCHMARKING
-	/* Save the eax and edx registers before reading the time stamp
-	* once done pop the values.
-	*/
-	push %eax
-	push %edx
-	rdtsc
-	mov %eax,__end_drop_to_usermode_time
-	mov %edx,__end_drop_to_usermode_time+4
-	pop %edx
-	pop %eax
-#endif
-
+#endif /* CONFIG_X86_IAMCU */
 	/* We will land in _thread_entry() in user mode after this */
 	iret
+#endif /* CONFIG_X86_SYSENTER */
+
+#ifdef CONFIG_X86_IAMCU
+SECTION_FUNC(TEXT, z_x86_iamcu_trampoline)
+	pop %eax
+	pop %edx
+	pop %ecx
+	jmp _thread_entry
+#endif

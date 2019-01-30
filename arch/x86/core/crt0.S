@@ -14,6 +14,7 @@
 #include <arch/x86/asm.h>
 #include <kernel_arch_data.h>
 #include <arch/cpu.h>
+#include <arch/x86/syscall.h>
 
 	/* exports (private APIs) */
 
@@ -379,6 +380,27 @@ __csSet:
 	ltr %ax
 #endif
 	lidt	z_x86_idt		/* load 32-bit operand size IDT */
+
+#ifdef CONFIG_X86_SYSENTER
+	/* Set IA32_SYSENTER_CS to CODE_SEG.
+	 * HW assumes DATA_SEG = CS + 8
+	 *       USER_CODE_SEG = CS + 16
+	 *       USER_DATA_SEG = CS + 24
+	 */
+	xorl %edx,%edx
+	movl $CODE_SEG, %eax
+	movl $IA32_SYSENTER_CS, %ecx
+	wrmsr
+
+	/* Set stack pointer and EIP for entering system calls */
+	movl $_interrupt_stack, %eax
+	movl $IA32_SYSENTER_ESP, %ecx
+	wrmsr
+
+	movl $_x86_syscall_entry_stub, %eax
+	movl $IA32_SYSENTER_EIP, %ecx
+	wrmsr
+#endif /* CONFIG_X86_SYSENTER */
 
 	/* Jump to C portion of kernel initialization and never return */
 

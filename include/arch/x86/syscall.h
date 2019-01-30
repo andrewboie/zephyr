@@ -19,6 +19,10 @@
 #define USER_CODE_SEG	0x1b /* at dpl=3 */
 #define USER_DATA_SEG	0x23 /* at dpl=3 */
 
+#define IA32_SYSENTER_CS	0x174
+#define IA32_SYSENTER_ESP	0x175
+#define IA32_SYSENTER_EIP	0x176
+
 #ifdef CONFIG_USERSPACE
 #ifndef _ASMLANGUAGE
 
