@@ -2149,6 +2149,80 @@ static inline void *z_impl_k_queue_peek_tail(struct k_queue *queue)
 
 /** @} */
 
+/**
+ * @defgroup wait_q_apis Wait queue APIs
+ * @ingroup kernel_apis
+ * @{
+ */
+
+struct k_wait_q {
+	_wait_q_t queue;
+	struct k_spinlock lock;
+};
+
+#define Z_WAIT_Q_INITIALIZER(obj) \
+	{ \
+		.queue = Z_WAIT_Q_INIT(&obj.queue) \
+	}
+
+#define K_WAIT_Q_DEFINE(_name) \
+	Z_STRUCT_SECTION_ITERABLE(k_wait_q, name) = Z_WAIT_Q_INITIALIZER(_name)
+
+/**
+ * @brief Initialize a wait queue object
+ *
+ * If the wait queue was not declared with K_WAIT_Q_DEFINE(), this must be
+ * called before any other operations may be taken on it.
+ *
+ * @param wait_q Wait queue to initialize
+ * @return 0 Success
+ * @return -EINVAL Invalid wait_q object, or object was already initialized, or
+ *                 caller does not have permission (user mode callers only)
+ */
+__syscall int k_wait_q_init(struct k_wait_q *wait_q);
+
+/**
+ * @brief Pend a thread on a wait queue
+ *
+ * Test that the memory pointed to by val contains the expected value, and if
+ * so atomically put the caller to sleep until woke up by a k_wait_q_wake()
+ * call.
+ *
+ * @param wait_q Address of the initialized wait_q object
+ * @param val Pointer to atomic value in memory whose value will be tested
+ * @param expected Expected value of the val parameter, if it is different the
+ *                 caller  will not wait on it.
+ * @param timeout Non-negative waiting period, in milliseconds, or
+ *		  one of the special values K_NO_WAIT or K_FOREVER.
+ * @retval -EACCES Caller does not have read access to atomic value address.
+ * @retval -EAGAIN If the futex value did not match the expected parameter.
+ * @retval -EINVAL Invalid wait_q object, or object is not initialized, or
+ *                 caller does not have permission (user mode callers only)
+ * @retval -ETIMEDOUT Thread woke up due to timeout and not an explicit wakeup.
+ * @retval 0 if the caller went to sleep and was woken up. The caller
+ *	     should check the atomic value on wakeup to determine if it needs
+ *	     to block again.
+ */
+__syscall int k_wait_q_wait(struct k_wait_q *wait_q, atomic_t *val,
+			    atomic_t expected, s32_t timeout);
+
+/**
+ * @brief Wake one/all threads pending on a wait queue
+ *
+ * Wake up threads pending on this wait queue, either the highest priority
+ * waiter, or all threads depending on the value of wake_all.
+ *
+ * @param wait_q Wait queue to wake up pending thread(s)
+ * @param wake_all If true, wake up all pending threads; If false,
+ *                 wakeup the highest priority thread.
+ * @retval -EINVAL Invalid wait_q object, or object is not initialized, or
+ *                 caller does not have permission (user mode callers only)
+ * @retval Number of threads that were woken up.
+ */
+__syscall int k_wait_q_wake(struct k_wait_q *wait_q, bool wake_all);
+
+/** @} */
+
 #ifdef CONFIG_USERSPACE
 /**
  * @brief futex structure
@@ -2164,23 +2238,6 @@ struct k_futex {
 };
 
 /**
- * @brief futex kernel data structure
- *
- * z_futex_data are the helper data structure for k_futex to complete
- * futex contended operation on kernel side, structure z_futex_data
- * of every futex object is invisible in user mode.
- */
-struct z_futex_data {
-	_wait_q_t wait_q;
-	struct k_spinlock lock;
-};
-
-#define Z_FUTEX_DATA_INITIALIZER(obj) \
-	{ \
-	.wait_q = Z_WAIT_Q_INIT(&obj.wait_q) \
-	}
-
-/**
  * @defgroup futex_apis FUTEX APIs
  * @ingroup kernel_apis
  * @{
@@ -2192,12 +2249,16 @@ struct z_futex_data {
  * Tests that the supplied futex contains the expected value, and if so,
  * goes to sleep until some other thread calls k_futex_wake() on it.
  *
+ * Unlike k_wait_q_wait, no k_wait_q object needs to be created or passed in.
+ * The futex object itself only contains the atomic value, but the build system
+ * will generate the associated k_wait_q object automatically.
+ *
  * @param futex Address of the futex.
  * @param expected Expected value of the futex, if it is different the caller
  *		   will not wait on it.
  * @param timeout Non-negative waiting period on the futex, in milliseconds, or
  *		  one of the special values K_NO_WAIT or K_FOREVER.
- * @retval -EACCES Caller does not have read access to futex address.
+ * @retval -EACCES Caller does not have read/write access to futex address.
  * @retval -EAGAIN If the futex value did not match the expected parameter.
  * @retval -EINVAL Futex parameter address not recognized by the kernel.
  * @retval -ETIMEDOUT Thread woke up due to timeout and not a futex wakeup.
@@ -2210,14 +2271,13 @@ __syscall int k_futex_wait(struct k_futex *futex, int expected, s32_t timeout);
 /**
  * @brief Wake one/all threads pending on a futex
  *
- * Wake up the highest priority thread pending on the supplied futex, or
- * wakeup all the threads pending on the supplied futex, and the behavior
- * depends on wake_all.
+ * Wake up threads pending on this futex, either the highest priority
+ * waiter, or all threads depending on the value of wake_all.
  *
  * @param futex Futex to wake up pending threads.
  * @param wake_all If true, wake up all pending threads; If false,
  *                 wakeup the highest priority thread.
- * @retval -EACCES Caller does not have access to the futex address.
+ * @retval -EACCES Caller does not have read/write access to the futex address.
  * @retval -EINVAL Futex parameter address not recognized by the kernel.
  * @retval Number of threads that were woken up.
  */

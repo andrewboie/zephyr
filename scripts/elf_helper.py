@@ -74,7 +74,7 @@ class KobjectInstance:
             self.data = "(u32_t)(&kernel_mutexes[%d])" % sys_mutex_counter
             sys_mutex_counter += 1
         elif self.type_obj.name == "k_futex":
-            self.data = "(u32_t)(&futex_data[%d])" % futex_counter
+            self.data = "(u32_t)(&wait_q[%d])" % futex_counter
             futex_counter += 1
         else:
             self.data = 0

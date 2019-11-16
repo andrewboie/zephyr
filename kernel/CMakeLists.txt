@@ -22,6 +22,7 @@ add_library(kernel
   thread.c
   thread_abort.c
   version.c
+  wait_q.c
   work_q.c
   smp.c
   )

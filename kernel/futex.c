@@ -12,7 +12,7 @@
 #include <init.h>
 #include <ksched.h>
 
-static struct z_futex_data *k_futex_find_data(struct k_futex *futex)
+static struct k_wait_q *k_futex_find_wait_q(struct k_futex *futex)
 {
 	struct _k_object *obj;
 
@@ -21,35 +21,19 @@ static struct z_futex_data *k_futex_find_data(struct k_futex *futex)
 		return NULL;
 	}
 
-	return (struct z_futex_data *)obj->data;
+	return (struct k_wait_q *)obj->data;
 }
 
 int z_impl_k_futex_wake(struct k_futex *futex, bool wake_all)
 {
-	k_spinlock_key_t key;
-	unsigned int woken = 0;
-	struct k_thread *thread;
-	struct z_futex_data *futex_data;
+	struct k_wait_q *wait_q;
 
-	futex_data = k_futex_find_data(futex);
-	if (futex_data == NULL) {
+	wait_q = k_futex_find_wait_q(futex);
+	if (wait_q == NULL) {
 		return -EINVAL;
 	}
 
-	key = k_spin_lock(&futex_data->lock);
-
-	do {
-		thread = z_unpend_first_thread(&futex_data->wait_q);
-		if (thread) {
-			z_ready_thread(thread);
-			arch_thread_return_value_set(thread, 0);
-			woken++;
-		}
-	} while (thread && wake_all);
-
-	z_reschedule(&futex_data->lock, key);
-
-	return woken;
+	return k_wait_q_wake(wait_q, wake_all);
 }
 
 static inline int z_vrfy_k_futex_wake(struct k_futex *futex, bool wake_all)
@@ -64,29 +48,14 @@ static inline int z_vrfy_k_futex_wake(struct k_futex *futex, bool wake_all)
 
 int z_impl_k_futex_wait(struct k_futex *futex, int expected, s32_t timeout)
 {
-	int ret;
-	k_spinlock_key_t key;
-	struct z_futex_data *futex_data;
+	struct k_wait_q *wait_q;
 
-	futex_data = k_futex_find_data(futex);
-	if (futex_data == NULL) {
+	wait_q = k_futex_find_wait_q(futex);
+	if (wait_q == NULL) {
 		return -EINVAL;
 	}
 
-	key = k_spin_lock(&futex_data->lock);
-
-	if (atomic_get(&futex->val) != (atomic_val_t)expected) {
-		k_spin_unlock(&futex_data->lock, key);
-		return -EAGAIN;
-	}
-
-	ret = z_pend_curr(&futex_data->lock,
-			key, &futex_data->wait_q, timeout);
-	if (ret == -EAGAIN) {
-		ret = -ETIMEDOUT;
-	}
-
-	return ret;
+	return k_wait_q_wait(wait_q, &futex->val, (atomic_t)expected, timeout);
 }
 
 static inline int z_vrfy_k_futex_wait(struct k_futex *futex, int expected,

@@ -87,7 +87,8 @@ kobjects = OrderedDict([
     ("_k_thread_stack_element", (None, False)),
     ("device", (None, False)),
     ("sys_mutex", (None, True)),
-    ("k_futex", (None, True))
+    ("k_futex", (None, True)),
+    ("k_wait_q", (None, False))
 ])
 
 
@@ -176,9 +177,9 @@ def write_gperf_table(fp, eh, objs, static_begin, static_end):
 
     num_futex = eh.get_futex_counter()
     if num_futex != 0:
-        fp.write("static struct z_futex_data futex_data[%d] = {\n" % num_futex)
+        fp.write("static struct k_wait_q wait_q[%d] = {\n" % num_futex)
         for i in range(num_futex):
-            fp.write("Z_FUTEX_DATA_INITIALIZER(futex_data[%d])" % i)
+            fp.write("Z_WAIT_Q_INITIALIZER(wait_q[%d])" % i)
             if i != num_futex - 1:
                 fp.write(", ")
         fp.write("};\n")
