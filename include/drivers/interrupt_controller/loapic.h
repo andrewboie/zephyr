@@ -11,6 +11,7 @@
 
 #include <arch/cpu.h>
 #include <arch/x86/msr.h>
+#include <sys/device_mmio.h>
 
 /* Local APIC Register Offset */
 
@@ -70,6 +71,9 @@ static inline uint64_t x86_read_x2apic(unsigned int reg)
 	return z_x86_msr_read(X86_X2APIC_BASE_MSR + reg);
 }
 
+/* Defined in intc_loapic.c */
+DEVICE_MMIO_TOPLEVEL_DECLARE(loapic_regs);
+
 /**
  * @brief Read 32-bit value from the local APIC in xAPIC (MMIO) mode.
  *
@@ -77,7 +81,7 @@ static inline uint64_t x86_read_x2apic(unsigned int reg)
  */
 static inline uint32_t x86_read_xapic(unsigned int reg)
 {
-	return sys_read32(CONFIG_LOAPIC_BASE_ADDRESS + reg);
+	return sys_read32(DEVICE_MMIO_TOPLEVEL_GET(loapic_regs) + reg);
 }
 
 /**
@@ -119,7 +123,7 @@ static inline void x86_write_x2apic(unsigned int reg, uint64_t val)
  */
 static inline void x86_write_xapic(unsigned int reg, uint32_t val)
 {
-	sys_write32(val, CONFIG_LOAPIC_BASE_ADDRESS + reg);
+	sys_write32(val, DEVICE_MMIO_TOPLEVEL_GET(loapic_regs) + reg);
 }
 
 /**
