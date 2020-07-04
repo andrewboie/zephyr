@@ -16,6 +16,7 @@
 #include <kernel_arch_data.h>
 #include <arch/cpu.h>
 #include <arch/x86/multiboot.h>
+#include <sys/mem_manage.h>
 
 	/* exports (private APIs) */
 
@@ -41,6 +42,52 @@
 	GTEXT(_sys_resume_from_deep_sleep)
 #endif
 
+.macro install_page_tables
+#ifdef CONFIG_X86_MMU
+	/* Enable paging. If virtual memory is enabled, the instruction pointer
+	 * is currently at a physical address. There is an identity mapping
+	 * for all RAM, plus a virtual mapping of RAM starting at
+	 * CONFIG_KERNEL_VM_BASE using the same paging structures.
+	 *
+	 * Until we enable these page tables, only physical memory addresses
+	 * work.
+	 */
+	/* Use Z_VM_OFFSET to convert to a physical address */
+	movl $(z_x86_kernel_ptables - Z_VM_OFFSET), %eax
+	movl %eax, %cr3
+
+#ifdef CONFIG_X86_PAE
+	/* Enable PAE */
+	movl %cr4, %eax
+	orl $CR4_PAE, %eax
+	movl %eax, %cr4
+
+	/* IA32_EFER NXE bit set */
+	movl $0xC0000080, %ecx
+	rdmsr
+	orl $0x800, %eax
+	wrmsr
+#endif /* CONFIG_X86_PAE */
+
+	/* Enable paging (CR0.PG, bit 31) / write protect (CR0.WP, bit 16) */
+	movl %cr0, %eax
+	orl $(CR0_PG | CR0_WP), %eax
+	movl %eax, %cr0
+
+#if CONFIG_VIRTUAL_MEMORY
+	/* Jump to a virtual address, which works because the mappings are the
+	 * same.
+	 */
+	lea vm_enter, %eax
+	jmp *%ecx
+vm_enter:
+	/* We are now executing in virtual memory. We'll un-map the identity
+	 * mappings later once we are in the C domain
+	 */
+#endif /* CONFIG_VIRTUAL_MEMORY */
+#endif /* CONFIG_X86_MMU */
+.endm
+
 SECTION_FUNC(TEXT_START, __start)
 
 #include "../common.S"
@@ -57,6 +104,10 @@ SECTION_FUNC(TEXT_START, __start)
 
 	cli
 
+#ifndef CONFIG_XIP
+	install_page_tables
+#endif /* CONFIG_XIP */
+
 	/*
 	 * Although the bootloader sets up an Interrupt Descriptor Table (IDT)
 	 * and a Global Descriptor Table (GDT), the specification encourages
@@ -64,11 +115,7 @@ SECTION_FUNC(TEXT_START, __start)
 	 */
 #if CONFIG_SET_GDT
 	lgdt	_gdt_rom		/* load 32-bit operand size GDT */
-#endif
 
-
-
-#ifdef CONFIG_SET_GDT
 	/* If we set our own GDT, update the segment registers as well.
 	 */
 	movw	$DATA_SEG, %ax	/* data segment selector (entry = 3) */
@@ -83,7 +130,6 @@ SECTION_FUNC(TEXT_START, __start)
 
 __csSet:
 #endif /* CONFIG_SET_GDT */
-
 
 #if !defined(CONFIG_FPU)
 	/*
@@ -206,6 +252,10 @@ __csSet:
 	call	_x86_data_copy
 #endif /* CONFIG_USERSPACE */
 
+	/* Have to do this here, the page tables aren't loaded into RAM
+	 * until after the data copy
+	 */
+	install_page_tables
 #endif /* CONFIG_XIP */
 
 	/*
@@ -308,30 +358,6 @@ dataWords:
 	ret
 #endif /* CONFIG_XIP */
 
-#ifdef CONFIG_X86_MMU
-z_x86_enable_paging:
-	/* load the page directory address into the registers*/
-	movl $z_x86_kernel_ptables, %eax
-	movl %eax, %cr3
-
-	/* Enable PAE */
-	movl %cr4, %eax
-	orl $CR4_PAE, %eax
-	movl %eax, %cr4
-
-	/* IA32_EFER NXE bit set */
-	movl $0xC0000080, %ecx
-	rdmsr
-	orl $0x800, %eax
-	wrmsr
-
-	/* Enable paging (CR0.PG, bit 31) / write protect (CR0.WP, bit 16) */
-	movl %cr0, %eax
-	orl $(CR0_PG | CR0_WP), %eax
-	movl %eax, %cr0
-
-	ret
-#endif /* CONFIG_X86_MMU */
 
 #if defined(CONFIG_SSE)
 
