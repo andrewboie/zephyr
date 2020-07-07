@@ -1,0 +1,16 @@
+identifier: qemu_x86_nopae
+name: QEMU Emulation for X86 (32-bit page tables)
+type: qemu
+simulation: qemu
+arch: x86
+toolchain:
+  - zephyr
+  - xtools
+supported:
+  - pci
+  - nvs
+  - netif:serial-net
+  - ieee802154
+  - eeprom
+testing:
+  default: true
