@@ -508,8 +508,56 @@ config SRAM_REGION_PERMISSIONS
 	  If enabled, the program text, rodata, and data parts of the kernel in
 	  the permanent mappings created at build time will have appropriate
 	  permissions set. Uses extra memory due to page-alignment constraints.
-	  If not enabled, all SRAM mappings will have P, RW, G flags set.
-	  User mode support requires this.
+	  If not enabled, all SRAM mappings will allow supervisor mode to
+	  read, write, and execute. User mode support requires this.
+
+config VIRTUAL_MEMORY
+	bool "Virtual Memory [EXPERIMENTAL]"
+	depends on MMU
+	default n
+	help
+	  If true, the MMU page tables are not identity mapped and the kernel
+	  will manage the virtual address space.
+
+	  Separate memory spaces for the CONFIG_USERSPACE feature are not
+	  yet implemented; the memory domain APIs continue to be used for
+	  managing user thread access permissions.
+
+	  This feature is experimental and currently under development.
+
+config KERNEL_VM_BASE
+	hex "Base virtual address for the kernel"
+	depends on VIRTUAL_MEMORY
+	default 0xFFFF000000000000 if 64BIT
+	default 0xC0000000
+	help
+	  Define the base virtual memory address for the core kernel. There will
+	  be a permemant mapping of all RAM starting at this virtual address,
+	  with any unused space up to the KERNEL_VM_LIMIT available for memory
+	  mappings. This denotes the start of the RAM mapping and may not be
+	  the base address of the kernel itself, but the offset of the kernel here
+	  will be the same as the offset from the beginning of physical memory
+	  where it was loaded.
+
+	  The value here must have similar alignment to the base physical address,
+	  such that the same page tables can be mapped to the top-level paging
+	  structure entries for the virtual and physical address.
+
+config KERNEL_VM_LIMIT
+	hex "Upper bound on kernel address space"
+	depends on VIRTUAL_MEMORY
+	default 0xFFFFFFFFFFFFFFFF if 64BIT
+	default 0xFFFFFFFF
+	help
+	  Inclusive upper bound on the virtual memory area reserved for the kernel.
+	  No mappings will be made past this point. Constraining this helps control
+	  how much memory is used for page tables. General kernel-space mapping
+	  calls grow downward from this value.
+
+	  The area defined by KERNEL_VM_BASE to KERNEL_VM_LIMIT must have enough
+	  room to map system RAM, plus any driver mappings. Further mappings
+	  may be made at runtime depending on configuration options (such as
+	  memory-mapping stacks, VDSO pages, etc).
 
 config MEMORY_PROTECTION
 	bool
