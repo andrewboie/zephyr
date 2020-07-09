@@ -52,36 +52,36 @@ static inline const struct uart_device_config *get_dev_conf(struct device *dev)
 
 static int uart_cc13xx_cc26xx_poll_in(struct device *dev, unsigned char *c)
 {
-	if (!UARTCharsAvail(get_dev_conf(dev)->regs)) {
+	if (!UARTCharsAvail(DEVICE_MMIO_GET(dev))) {
 		return -1;
 	}
 
-	*c = UARTCharGetNonBlocking(get_dev_conf(dev)->regs);
+	*c = UARTCharGetNonBlocking(DEVICE_MMIO_GET(dev));
 
 	return 0;
 }
 
 static void uart_cc13xx_cc26xx_poll_out(struct device *dev, unsigned char c)
 {
-	UARTCharPut(get_dev_conf(dev)->regs, c);
+	UARTCharPut(DEVICE_MMIO_GET(dev), c);
 	/*
 	 * Need to wait for character to be transmitted to ensure cpu does not
 	 * enter standby when uart is busy
 	 */
-	while (UARTBusy(get_dev_conf(dev)->regs) == true) {
+	while (UARTBusy(DEVICE_MMIO_GET(dev)) == true) {
 	}
 }
 
 static int uart_cc13xx_cc26xx_err_check(struct device *dev)
 {
-	uint32_t flags = UARTRxErrorGet(get_dev_conf(dev)->regs);
+	uint32_t flags = UARTRxErrorGet(DEVICE_MMIO_GET(dev));
 
 	int error = (flags & UART_RXERROR_FRAMING ? UART_ERROR_FRAMING : 0) |
 		    (flags & UART_RXERROR_PARITY ? UART_ERROR_PARITY : 0) |
 		    (flags & UART_RXERROR_BREAK ? UART_BREAK : 0) |
 		    (flags & UART_RXERROR_OVERRUN ? UART_ERROR_OVERRUN : 0);
 
-	UARTRxErrorClear(get_dev_conf(dev)->regs);
+	UARTRxErrorClear(DEVICE_MMIO_GET(dev));
 
 	return error;
 }
@@ -157,27 +157,27 @@ static int uart_cc13xx_cc26xx_configure(struct device *dev,
 	}
 
 	/* Disables UART before setting control registers */
-	UARTConfigSetExpClk(get_dev_conf(dev)->regs,
+	UARTConfigSetExpClk(DEVICE_MMIO_GET(dev),
 			    get_dev_conf(dev)->sys_clk_freq, cfg->baudrate,
 			    line_ctrl);
 
 	/* Clear all UART interrupts */
-	UARTIntClear(get_dev_conf(dev)->regs,
+	UARTIntClear(DEVICE_MMIO_GET(dev),
 		UART_INT_OE | UART_INT_BE | UART_INT_PE |
 		UART_INT_FE | UART_INT_RT | UART_INT_TX |
 		UART_INT_RX | UART_INT_CTS);
 
 	if (flow_ctrl) {
-		UARTHwFlowControlEnable(get_dev_conf(dev)->regs);
+		UARTHwFlowControlEnable(DEVICE_MMIO_GET(dev));
 	} else {
-		UARTHwFlowControlDisable(get_dev_conf(dev)->regs);
+		UARTHwFlowControlDisable(DEVICE_MMIO_GET(dev));
 	}
 
 	/* Re-enable UART */
-	UARTEnable(get_dev_conf(dev)->regs);
+	UARTEnable(DEVICE_MMIO_GET(dev));
 
 	/* Disabled FIFOs act as 1-byte-deep holding registers (character mode) */
-	UARTFIFODisable(get_dev_conf(dev)->regs);
+	UARTFIFODisable(DEVICE_MMIO_GET(dev));
 
 	get_dev_data(dev)->uart_config = *cfg;
 
@@ -199,7 +199,7 @@ static int uart_cc13xx_cc26xx_fifo_fill(struct device *dev, const uint8_t *buf,
 	int n = 0;
 
 	while (n < len) {
-		if (!UARTCharPutNonBlocking(get_dev_conf(dev)->regs, buf[n])) {
+		if (!UARTCharPutNonBlocking(DEVICE_MMIO_GET(dev), buf[n])) {
 			break;
 		}
 		n++;
@@ -215,7 +215,7 @@ static int uart_cc13xx_cc26xx_fifo_read(struct device *dev, uint8_t *buf,
 
 	n = 0;
 	while (n < len) {
-		c = UARTCharGetNonBlocking(get_dev_conf(dev)->regs);
+		c = UARTCharGetNonBlocking(DEVICE_MMIO_GET(dev));
 		if (c == -1) {
 			break;
 		}
@@ -245,12 +245,12 @@ static void uart_cc13xx_cc26xx_irq_tx_enable(struct device *dev)
 	}
 #endif
 
-	UARTIntEnable(get_dev_conf(dev)->regs, UART_INT_TX);
+	UARTIntEnable(DEVICE_MMIO_GET(dev), UART_INT_TX);
 }
 
 static void uart_cc13xx_cc26xx_irq_tx_disable(struct device *dev)
 {
-	UARTIntDisable(get_dev_conf(dev)->regs, UART_INT_TX);
+	UARTIntDisable(DEVICE_MMIO_GET(dev), UART_INT_TX);
 
 #if defined(CONFIG_SYS_POWER_MANAGEMENT) && \
 	defined(CONFIG_SYS_POWER_SLEEP_STATES)
@@ -263,7 +263,7 @@ static void uart_cc13xx_cc26xx_irq_tx_disable(struct device *dev)
 
 static int uart_cc13xx_cc26xx_irq_tx_ready(struct device *dev)
 {
-	return UARTSpaceAvail(get_dev_conf(dev)->regs) ? 1 : 0;
+	return UARTSpaceAvail(DEVICE_MMIO_GET(dev)) ? 1 : 0;
 }
 
 static void uart_cc13xx_cc26xx_irq_rx_enable(struct device *dev)
@@ -281,7 +281,7 @@ static void uart_cc13xx_cc26xx_irq_rx_enable(struct device *dev)
 	}
 #endif
 
-	UARTIntEnable(get_dev_conf(dev)->regs, UART_INT_RX);
+	UARTIntEnable(DEVICE_MMIO_GET(dev), UART_INT_RX);
 }
 
 static void uart_cc13xx_cc26xx_irq_rx_disable(struct device *dev)
@@ -294,36 +294,36 @@ static void uart_cc13xx_cc26xx_irq_rx_disable(struct device *dev)
 	}
 #endif
 
-	UARTIntDisable(get_dev_conf(dev)->regs, UART_INT_RX);
+	UARTIntDisable(DEVICE_MMIO_GET(dev), UART_INT_RX);
 }
 
 static int uart_cc13xx_cc26xx_irq_tx_complete(struct device *dev)
 {
-	return UARTBusy(get_dev_conf(dev)->regs) ? 0 : 1;
+	return UARTBusy(DEVICE_MMIO_GET(dev)) ? 0 : 1;
 }
 
 static int uart_cc13xx_cc26xx_irq_rx_ready(struct device *dev)
 {
-	return UARTCharsAvail(get_dev_conf(dev)->regs) ? 1 : 0;
+	return UARTCharsAvail(DEVICE_MMIO_GET(dev)) ? 1 : 0;
 }
 
 static void uart_cc13xx_cc26xx_irq_err_enable(struct device *dev)
 {
-	return UARTIntEnable(get_dev_conf(dev)->regs,
+	return UARTIntEnable(DEVICE_MMIO_GET(dev),
 			     UART_INT_OE | UART_INT_BE | UART_INT_PE |
 				     UART_INT_FE);
 }
 
 static void uart_cc13xx_cc26xx_irq_err_disable(struct device *dev)
 {
-	return UARTIntDisable(get_dev_conf(dev)->regs,
+	return UARTIntDisable(DEVICE_MMIO_GET(dev),
 			      UART_INT_OE | UART_INT_BE | UART_INT_PE |
 				      UART_INT_FE);
 }
 
 static int uart_cc13xx_cc26xx_irq_is_pending(struct device *dev)
 {
-	uint32_t status = UARTIntStatus(get_dev_conf(dev)->regs, true);
+	uint32_t status = UARTIntStatus(DEVICE_MMIO_GET(dev), true);
 
 	return status & (UART_INT_TX | UART_INT_RX) ? 1 : 0;
 }
@@ -372,7 +372,7 @@ static int postNotifyFxn(unsigned int eventType, uintptr_t eventArg,
 
 	/* Reconfigure the hardware if returning from standby */
 	if (eventType == PowerCC26XX_AWAKE_STANDBY) {
-		if (get_dev_conf(dev)->regs ==
+		if (DEVICE_MMIO_GET(dev) ==
 			DT_INST_REG_ADDR(0)) {
 			res_id = PowerCC26XX_PERIPH_UART0;
 		} else { /* DT_INST_REG_ADDR(1) */
@@ -403,7 +403,7 @@ static int uart_cc13xx_cc26xx_set_power_state(struct device *dev,
 
 	if ((new_state == DEVICE_PM_ACTIVE_STATE) &&
 		(new_state != get_dev_data(dev)->pm_state)) {
-		if (get_dev_conf(dev)->regs ==
+		if (DEVICE_MMIO_GET(dev) ==
 			DT_INST_REG_ADDR(0)) {
 			Power_setDependency(PowerCC26XX_PERIPH_UART0);
 		} else {
@@ -421,12 +421,12 @@ static int uart_cc13xx_cc26xx_set_power_state(struct device *dev,
 			new_state == DEVICE_PM_OFF_STATE);
 
 		if (get_dev_data(dev)->pm_state == DEVICE_PM_ACTIVE_STATE) {
-			UARTDisable(get_dev_conf(dev)->regs);
+			UARTDisable(DEVICE_MMIO_GET(dev));
 			/*
 			 * Release power dependency - i.e. potentially power
 			 * down serial domain.
 			 */
-			if (get_dev_conf(dev)->regs ==
+			if (DEVICE_MMIO_GET(dev) ==
 			    DT_INST_REG_ADDR(0)) {
 				Power_releaseDependency(
 					PowerCC26XX_PERIPH_UART0);
@@ -544,7 +544,7 @@ static const struct uart_driver_api uart_cc13xx_cc26xx_driver_api = {
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 #define UART_CC13XX_CC26XX_IRQ_CFG(n)					\
 	do {								\
-		UARTIntClear(get_dev_conf(dev)->regs, UART_INT_RX);	\
+		UARTIntClear(DEVICE_MMIO_GET(dev), UART_INT_RX);	\
 									\
 		IRQ_CONNECT(DT_INST_IRQN(n),				\
 				DT_INST_IRQ(n, priority),		\
@@ -553,7 +553,7 @@ static const struct uart_driver_api uart_cc13xx_cc26xx_driver_api = {
 				0);					\
 		irq_enable(DT_INST_IRQN(n));				\
 		/* Causes an initial TX ready INT when TX INT enabled */\
-		UARTCharPutNonBlocking(get_dev_conf(dev)->regs, '\0');  \
+		UARTCharPutNonBlocking(DEVICE_MMIO_GET(dev), '\0');  \
 	} while (0)
 
 #define UART_CC13XX_CC26XX_INT_FIELDS					\
@@ -627,7 +627,7 @@ static const struct uart_driver_api uart_cc13xx_cc26xx_driver_api = {
 								     \
 	static const struct uart_device_config			     \
 		uart_cc13xx_cc26xx_config_##n = {		     \
-		.regs = DT_INST_REG_ADDR(n),			     \
+		DEVICE_MMIO_ROM_INIT(n),			     \
 		.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(n, clocks,   \
 			clock_frequency)			     \
 	};							     \

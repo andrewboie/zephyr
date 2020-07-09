@@ -19,7 +19,7 @@
 	((struct uart_numicro_data * const)(dev)->driver_data)
 
 #define UART_STRUCT(dev)					\
-	((UART_T *)(DEV_CFG(dev))->devcfg.base)
+	((UART_T *)(DEVICE_MMIO_GET(dev)))
 
 struct uart_numicro_config {
 	struct uart_device_config devcfg;
@@ -185,7 +185,7 @@ static const struct uart_driver_api uart_numicro_driver_api = {
 									\
 static const struct uart_numicro_config uart_numicro_cfg_##index = {	\
 	.devcfg = {							\
-		.base = (uint8_t *)DT_INST_REG_ADDR(index),		\
+		DEVICE_MMIO_ROM_INIT(index),				\
 	},								\
 	.id_rst = UART##index##_RST,					\
 	.id_clk = UART##index##_MODULE,					\

@@ -238,6 +238,9 @@ typedef void (*uart_callback_t)(struct uart_event *evt, void *user_data);
 /**
  * @brief UART controller configuration structure
  *
+ * If this is embedded within another data structure, it must be the first
+ * member, such that device->driver_data may be directly cast.
+ *
  * @param baudrate  Baudrate setting in bps
  * @param parity    Parity bit, use @ref uart_config_parity
  * @param stop_bits Stop bits, use @ref uart_config_stop_bits
@@ -245,6 +248,7 @@ typedef void (*uart_callback_t)(struct uart_event *evt, void *user_data);
  * @param flow_ctrl Flow control setting, use @ref uart_config_flow_control
  */
 struct uart_config {
+	DEVICE_MMIO_RAM;
 	uint32_t baudrate;
 	uint8_t parity;
 	uint8_t stop_bits;
@@ -320,18 +324,16 @@ typedef void (*uart_irq_config_func_t)(struct device *port);
 /**
  * @brief UART device configuration.
  *
+ * If this is embedded within another data structure, it must be the first
+ * member, such that device->config_info may be directly cast.
+ *
  * @param port Base port number
  * @param base Memory mapped base address
  * @param regs Register address
  * @param sys_clk_freq System clock frequency in Hz
  */
 struct uart_device_config {
-	union {
-		uint32_t port;
-		uint8_t *base;
-		uint32_t regs;
-	};
-
+	DEVICE_MMIO_ROM;
 	uint32_t sys_clk_freq;
 
 #if defined(CONFIG_UART_INTERRUPT_DRIVEN) || defined(CONFIG_UART_ASYNC_API)

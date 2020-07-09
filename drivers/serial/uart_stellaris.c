@@ -84,7 +84,7 @@ struct uart_stellaris_dev_data_t {
 #define DEV_DATA(dev) \
 	((struct uart_stellaris_dev_data_t * const)(dev)->driver_data)
 #define UART_STRUCT(dev) \
-	((volatile struct _uart *)(DEV_CFG(dev))->base)
+	((volatile struct _uart *)(DEVICE_MMIO_GET(dev)))
 
 /* registers */
 #define UARTDR(dev) (*((volatile uint32_t *)(DEV_CFG(dev)->base + 0x000)))
@@ -635,7 +635,7 @@ static void irq_config_func_0(struct device *port);
 #endif
 
 static const struct uart_device_config uart_stellaris_dev_cfg_0 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(0),
+	DEVICE_MMIO_ROM_INIT(0),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(0, clocks, clock_frequency),
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
@@ -673,7 +673,7 @@ static void irq_config_func_1(struct device *port);
 #endif
 
 static struct uart_device_config uart_stellaris_dev_cfg_1 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(1),
+	DEVICE_MMIO_ROM_INIT(1),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(1, clocks, clock_frequency),
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
@@ -711,7 +711,7 @@ static void irq_config_func_2(struct device *port);
 #endif
 
 static const struct uart_device_config uart_stellaris_dev_cfg_2 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(2),
+	DEVICE_MMIO_ROM_INIT(2),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(2, clocks, clock_frequency),
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
