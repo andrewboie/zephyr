@@ -39,7 +39,7 @@ static void uart_cc32xx_isr(void *arg);
 #endif
 
 static const struct uart_device_config uart_cc32xx_dev_cfg_0 = {
-	.base = (void *)DT_INST_REG_ADDR(0),
+	DEVICE_MMIO_ROM_INIT(0),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(0, clocks, clock_frequency)
 };
 
@@ -58,24 +58,22 @@ static struct uart_cc32xx_dev_data_t uart_cc32xx_dev_data_0 = {
  */
 static int uart_cc32xx_init(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
 	MAP_PRCMPeripheralReset(PRCM_UARTA0);
 
 	/* This also calls MAP_UARTEnable() to enable the FIFOs: */
-	MAP_UARTConfigSetExpClk((unsigned long)config->base,
+	MAP_UARTConfigSetExpClk(DEVICE_MMIO_GET(dev),
 				MAP_PRCMPeripheralClockGet(PRCM_UARTA0),
 				DT_INST_PROP(0, current_speed),
 				(UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE
 				 | UART_CONFIG_PAR_NONE));
-	MAP_UARTFlowControlSet((unsigned long)config->base,
+	MAP_UARTFlowControlSet(DEVICE_MMIO_GET(dev),
 			       UART_FLOWCONTROL_NONE);
 	/* Re-disable the FIFOs: */
-	MAP_UARTFIFODisable((unsigned long)config->base);
+	MAP_UARTFIFODisable(DEVICE_MMIO_GET(dev));
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	/* Clear any pending UART RX interrupts: */
-	MAP_UARTIntClear((unsigned long)config->base, UART_INT_RX);
+	MAP_UARTIntClear(DEVICE_MMIO_GET(dev), UART_INT_RX);
 
 	IRQ_CONNECT(DT_INST_IRQN(0),
 		    DT_INST_IRQ(0, priority),
@@ -87,17 +85,15 @@ static int uart_cc32xx_init(struct device *dev)
 	 * with first tx fifo empty interrupt when they first call
 	 * uart_irq_tx_enable().
 	 */
-	MAP_UARTCharPutNonBlocking((unsigned long)config->base, PRIME_CHAR);
+	MAP_UARTCharPutNonBlocking(DEVICE_MMIO_GET(dev), PRIME_CHAR);
 #endif
 	return 0;
 }
 
 static int uart_cc32xx_poll_in(struct device *dev, unsigned char *c)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
-	if (MAP_UARTCharsAvail((unsigned long)config->base)) {
-		*c = MAP_UARTCharGetNonBlocking((unsigned long)config->base);
+	if (MAP_UARTCharsAvail(DEVICE_MMIO_GET(dev))) {
+		*c = MAP_UARTCharGetNonBlocking(DEVICE_MMIO_GET(dev));
 	} else {
 		return (-1);
 	}
@@ -106,18 +102,15 @@ static int uart_cc32xx_poll_in(struct device *dev, unsigned char *c)
 
 static void uart_cc32xx_poll_out(struct device *dev, unsigned char c)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
-	MAP_UARTCharPut((unsigned long)config->base, c);
+	MAP_UARTCharPut(DEVICE_MMIO_GET(dev), c);
 }
 
 static int uart_cc32xx_err_check(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
 	unsigned long cc32xx_errs = 0L;
 	unsigned int z_err = 0U;
 
-	cc32xx_errs = MAP_UARTRxErrorGet((unsigned long)config->base);
+	cc32xx_errs = MAP_UARTRxErrorGet(DEVICE_MMIO_GET(dev));
 
 	/* Map cc32xx SDK uart.h defines to zephyr uart.h defines */
 	z_err = ((cc32xx_errs & UART_RXERROR_OVERRUN) ?
@@ -126,7 +119,7 @@ static int uart_cc32xx_err_check(struct device *dev)
 		((cc32xx_errs & UART_RXERROR_PARITY) ? UART_ERROR_PARITY : 0) |
 		((cc32xx_errs & UART_RXERROR_FRAMING) ? UART_ERROR_FRAMING : 0);
 
-	MAP_UARTRxErrorClear((unsigned long)config->base);
+	MAP_UARTRxErrorClear(DEVICE_MMIO_GET(dev));
 
 	return (int)z_err;
 }
@@ -136,12 +129,11 @@ static int uart_cc32xx_err_check(struct device *dev)
 static int uart_cc32xx_fifo_fill(struct device *dev, const uint8_t *tx_data,
 				 int size)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
 	unsigned int num_tx = 0U;
 
 	while ((size - num_tx) > 0) {
 		/* Send a character */
-		if (MAP_UARTCharPutNonBlocking((unsigned long)config->base,
+		if (MAP_UARTCharPutNonBlocking(DEVICE_MMIO_GET(dev),
 					       tx_data[num_tx])) {
 			num_tx++;
 		} else {
@@ -155,15 +147,14 @@ static int uart_cc32xx_fifo_fill(struct device *dev, const uint8_t *tx_data,
 static int uart_cc32xx_fifo_read(struct device *dev, uint8_t *rx_data,
 				 const int size)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
 	unsigned int num_rx = 0U;
 
 	while (((size - num_rx) > 0) &&
-		MAP_UARTCharsAvail((unsigned long)config->base)) {
+		MAP_UARTCharsAvail(DEVICE_MMIO_GET(dev))) {
 
 		/* Receive a character */
 		rx_data[num_rx++] =
-			MAP_UARTCharGetNonBlocking((unsigned long)config->base);
+			MAP_UARTCharGetNonBlocking(DEVICE_MMIO_GET(dev));
 	}
 
 	return num_rx;
@@ -171,56 +162,44 @@ static int uart_cc32xx_fifo_read(struct device *dev, uint8_t *rx_data,
 
 static void uart_cc32xx_irq_tx_enable(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
-	MAP_UARTIntEnable((unsigned long)config->base, UART_INT_TX);
+	MAP_UARTIntEnable(DEVICE_MMIO_GET(dev), UART_INT_TX);
 }
 
 static void uart_cc32xx_irq_tx_disable(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
-	MAP_UARTIntDisable((unsigned long)config->base, UART_INT_TX);
+	MAP_UARTIntDisable(DEVICE_MMIO_GET(dev), UART_INT_TX);
 }
 
 static int uart_cc32xx_irq_tx_ready(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
 	unsigned int int_status;
 
-	int_status = MAP_UARTIntStatus((unsigned long)config->base, 1);
+	int_status = MAP_UARTIntStatus(DEVICE_MMIO_GET(dev), 1);
 
 	return (int_status & UART_INT_TX);
 }
 
 static void uart_cc32xx_irq_rx_enable(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
 	/* FIFOs are left disabled from reset, so UART_INT_RT flag not used. */
-	MAP_UARTIntEnable((unsigned long)config->base, UART_INT_RX);
+	MAP_UARTIntEnable(DEVICE_MMIO_GET(dev), UART_INT_RX);
 }
 
 static void uart_cc32xx_irq_rx_disable(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
-	MAP_UARTIntDisable((unsigned long)config->base, UART_INT_RX);
+	MAP_UARTIntDisable(DEVICE_MMIO_GET(dev), UART_INT_RX);
 }
 
 static int uart_cc32xx_irq_tx_complete(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
-	return (!MAP_UARTBusy((unsigned long)config->base));
+	return (!MAP_UARTBusy(DEVICE_MMIO_GET(dev)));
 }
 
 static int uart_cc32xx_irq_rx_ready(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
 	unsigned int int_status;
 
-	int_status = MAP_UARTIntStatus((unsigned long)config->base, 1);
+	int_status = MAP_UARTIntStatus(DEVICE_MMIO_GET(dev), 1);
 
 	return (int_status & UART_INT_RX);
 }
@@ -237,10 +216,9 @@ static void uart_cc32xx_irq_err_disable(struct device *dev)
 
 static int uart_cc32xx_irq_is_pending(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
 	unsigned int int_status;
 
-	int_status = MAP_UARTIntStatus((unsigned long)config->base, 1);
+	int_status = MAP_UARTIntStatus(DEVICE_MMIO_GET(dev), 1);
 
 	return (int_status & (UART_INT_TX | UART_INT_RX));
 }
@@ -275,10 +253,9 @@ static void uart_cc32xx_irq_callback_set(struct device *dev,
 static void uart_cc32xx_isr(void *arg)
 {
 	struct device *dev = arg;
-	const struct uart_device_config *config = DEV_CFG(dev);
 	struct uart_cc32xx_dev_data_t * const dev_data = DEV_DATA(dev);
 
-	unsigned long intStatus = MAP_UARTIntStatus((unsigned long)config->base,
+	unsigned long intStatus = MAP_UARTIntStatus(DEVICE_MMIO_GET(dev),
 						    1);
 
 	if (dev_data->cb) {
@@ -289,7 +266,7 @@ static void uart_cc32xx_isr(void *arg)
 	 * clients calling uart_fifo_read() or uart_fifo_write().
 	 * Still, clear any error interrupts here, as they're not yet handled.
 	 */
-	MAP_UARTIntClear((unsigned long)config->base,
+	MAP_UARTIntClear(DEVICE_MMIO_GET(dev),
 			 intStatus & ~(UART_INT_RX | UART_INT_TX));
 }
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */

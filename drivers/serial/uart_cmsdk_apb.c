@@ -81,7 +81,7 @@ struct uart_cmsdk_apb_dev_data {
 #define DEV_DATA(dev) \
 	((struct uart_cmsdk_apb_dev_data * const)(dev)->driver_data)
 #define UART_STRUCT(dev) \
-	((volatile struct uart_cmsdk_apb *)(DEV_CFG(dev))->base)
+	((volatile struct uart_cmsdk_apb *)(DEVICE_MMIO_GET(dev)))
 
 static const struct uart_driver_api uart_cmsdk_apb_driver_api;
 static void uart_cmsdk_apb_isr(void *arg);
@@ -465,7 +465,7 @@ static void uart_cmsdk_apb_irq_config_func_0(struct device *dev);
 #endif
 
 static const struct uart_device_config uart_cmsdk_apb_dev_cfg_0 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(0),
+	DEVICE_MMIO_ROM_INIT(0),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(0, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = uart_cmsdk_apb_irq_config_func_0,
@@ -530,7 +530,7 @@ static void uart_cmsdk_apb_irq_config_func_1(struct device *dev);
 #endif
 
 static const struct uart_device_config uart_cmsdk_apb_dev_cfg_1 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(1),
+	DEVICE_MMIO_ROM_INIT(1),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(1, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = uart_cmsdk_apb_irq_config_func_1,
@@ -595,7 +595,7 @@ static void uart_cmsdk_apb_irq_config_func_2(struct device *dev);
 #endif
 
 static const struct uart_device_config uart_cmsdk_apb_dev_cfg_2 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(2),
+	DEVICE_MMIO_ROM_INIT(2),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(2, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = uart_cmsdk_apb_irq_config_func_2,
@@ -660,7 +660,7 @@ static void uart_cmsdk_apb_irq_config_func_3(struct device *dev);
 #endif
 
 static const struct uart_device_config uart_cmsdk_apb_dev_cfg_3 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(3),
+	DEVICE_MMIO_ROM_INIT(3),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(3, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = uart_cmsdk_apb_irq_config_func_3,
@@ -725,7 +725,7 @@ static void uart_cmsdk_apb_irq_config_func_4(struct device *dev);
 #endif
 
 static const struct uart_device_config uart_cmsdk_apb_dev_cfg_4 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(4),
+	DEVICE_MMIO_ROM_INIT(4),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(4, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = uart_cmsdk_apb_irq_config_func_4,

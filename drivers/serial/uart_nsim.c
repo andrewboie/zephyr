@@ -89,7 +89,7 @@ static int uart_nsim_init(struct device *dev)
  */
 static void uart_nsim_poll_out(struct device *dev, unsigned char c)
 {
-	uint32_t regs = DEV_CFG(dev)->regs;
+	uint32_t regs = DEVICE_MMIO_GET(dev);
 	/* wait for transmitter to ready to accept a character */
 
 	while (!(UART_GET_STATUS(regs) & TXEMPTY)) {
@@ -110,7 +110,7 @@ static const struct uart_driver_api uart_nsim_driver_api = {
 };
 
 static struct uart_device_config uart_nsim_dev_cfg_0 = {
-	.regs = DT_INST_REG_ADDR(0),
+	DEVICE_MMIO_ROM_INIT(0),
 };
 
 DEVICE_AND_API_INIT(uart_nsim0, DT_INST_LABEL(0), &uart_nsim_init,

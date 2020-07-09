@@ -102,7 +102,7 @@ struct uart_esp32_data {
 #define DEV_DATA(dev) \
 	((struct uart_esp32_data *)(dev)->driver_data)
 #define DEV_BASE(dev) \
-	((volatile struct uart_esp32_regs_t  *)(DEV_CFG(dev))->dev_conf.base)
+	((volatile struct uart_esp32_regs_t  *)(DEVICE_MMIO_GET(dev)))
 
 #define UART_TXFIFO_COUNT(status_reg)  ((status_reg >> 16) & 0xFF)
 #define UART_RXFIFO_COUNT(status_reg)  ((status_reg >> 0) & 0xFF)
@@ -497,8 +497,7 @@ static const struct uart_driver_api uart_esp32_api = {
 ESP32_UART_IRQ_HANDLER_DECL(idx);					       \
 static const struct uart_esp32_config uart_esp32_cfg_port_##idx = {	       \
 	.dev_conf = {							       \
-		.base =							       \
-		    (uint8_t *)DT_INST_REG_ADDR(idx), \
+		DEVICE_MMIO_ROM_INIT(idx),				       \
 		ESP32_UART_IRQ_HANDLER_FUNC(idx)			       \
 	},								       \
 											   \

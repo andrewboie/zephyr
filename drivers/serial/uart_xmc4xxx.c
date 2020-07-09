@@ -22,26 +22,23 @@ struct uart_xmc4xxx_data {
 
 static int uart_xmc4xxx_poll_in(struct device *dev, unsigned char *c)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
 	*(uint16_t *)c =
-		XMC_UART_CH_GetReceivedData((XMC_USIC_CH_t *)config->base);
+		XMC_UART_CH_GetReceivedData(
+			(XMC_USIC_CH_t *)DEVICE_MMIO_GET(dev));
 
 	return 0;
 }
 
 static void uart_xmc4xxx_poll_out(struct device *dev, unsigned char c)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
-
-	XMC_UART_CH_Transmit((XMC_USIC_CH_t *)config->base, (uint16_t)c);
+	XMC_UART_CH_Transmit((XMC_USIC_CH_t *)DEVICE_MMIO_GET(dev),
+			     (uint16_t)c);
 }
 
 static int uart_xmc4xxx_init(struct device *dev)
 {
-	const struct uart_device_config *config = DEV_CFG(dev);
 	struct uart_xmc4xxx_data *data = DEV_DATA(dev);
-	XMC_USIC_CH_t *uart = (XMC_USIC_CH_t *)config->base;
+	XMC_USIC_CH_t *uart = (XMC_USIC_CH_t *)DEVICE_MMIO_GET(dev);
 
 	data->config.data_bits = 8U;
 	data->config.stop_bits = 1U;
@@ -70,7 +67,7 @@ static struct uart_xmc4xxx_data xmc4xxx_data_##index = {		\
 };									\
 									\
 static const struct uart_device_config xmc4xxx_config_##index = {	\
-	.base = (void *)DT_INST_REG_ADDR(index),			\
+	DEVICE_MMIO_ROM_INIT(index),					\
 };									\
 									\
 	DEVICE_AND_API_INIT(uart_xmc4xxx_##index, DT_INST_LABEL(index),	\

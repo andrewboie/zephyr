@@ -38,7 +38,7 @@ LOG_MODULE_REGISTER(uart_stm32);
 #define DEV_DATA(dev)							\
 	((struct uart_stm32_data * const)(dev)->driver_data)
 #define UART_STRUCT(dev)					\
-	((USART_TypeDef *)(DEV_CFG(dev))->uconf.base)
+	((USART_TypeDef *)(DEVICE_MMIO_GET(dev)))
 
 #define TIMEOUT 1000
 
@@ -756,7 +756,7 @@ STM32_UART_IRQ_HANDLER_DECL(index);					\
 									\
 static const struct uart_stm32_config uart_stm32_cfg_##index = {	\
 	.uconf = {							\
-		.base = (uint8_t *)DT_INST_REG_ADDR(index),\
+		DEVICE_MMIO_ROM_INIT(index),				\
 		STM32_UART_IRQ_HANDLER_FUNC(index)			\
 	},								\
 	.pclken = { .bus = DT_INST_CLOCKS_CELL(index, bus),	\

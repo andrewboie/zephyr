@@ -145,7 +145,7 @@ struct pl011_data {
 #define DEV_DATA(dev) \
 	((struct pl011_data *)(dev)->driver_data)
 #define PL011_REGS(dev) \
-	((volatile struct pl011_regs  *)(DEV_CFG(dev))->base)
+	((volatile struct pl011_regs  *)(DEVICE_MMIO_GET(dev)))
 
 static void pl011_enable(struct device *dev)
 {
@@ -415,7 +415,7 @@ static void pl011_irq_config_func_0(struct device *dev);
 #endif
 
 static struct uart_device_config pl011_cfg_port_0 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(0),
+	DEVICE_MMIO_ROM_INIT(0),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(0, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = pl011_irq_config_func_0,
@@ -478,7 +478,7 @@ static void pl011_irq_config_func_1(struct device *dev);
 #endif
 
 static struct uart_device_config pl011_cfg_port_1 = {
-	.base = (uint8_t *)DT_INST_REG_ADDR(1),
+	DEVICE_MMIO_ROM_INIT(1),
 	.sys_clk_freq = DT_INST_PROP_BY_PHANDLE(1, clocks, clock_frequency),
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	.irq_config_func = pl011_irq_config_func_1,
