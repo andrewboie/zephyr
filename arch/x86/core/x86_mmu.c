@@ -15,6 +15,7 @@
 #include <spinlock.h>
 #include <kernel_arch_func.h>
 #include <x86_mmu.h>
+#include <init.h>
 
 LOG_MODULE_DECLARE(os);
 
@@ -417,6 +418,19 @@ void z_x86_dump_page_tables(pentry_t *ptables)
 {
 	dump_ptables(ptables, NULL, 0);
 }
+
+#define DUMP_PAGE_TABLES 1
+
+#ifdef DUMP_PAGE_TABLES
+static int dump_kernel_tables(struct device *unused)
+{
+	z_x86_dump_page_tables(&z_x86_kernel_ptables);
+
+	return 0;
+}
+
+SYS_INIT(dump_kernel_tables, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+#endif
 
 static void str_append(char **buf, size_t *size, const char *str)
 {
