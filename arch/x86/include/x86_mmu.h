@@ -96,5 +96,9 @@ static inline pentry_t *z_x86_thread_page_tables_get(struct k_thread *thread)
 	return &z_x86_kernel_ptables;
 #endif
 }
+
+#ifdef CONFIG_VIRTUAL_MEMORY
+void z_x86_mmu_identity_map_remove(void);
+#endif /* CONFIG_VIRTUAL_MEMORY */
 #endif /* CONFIG_X86_MMU */
 #endif /* ZEPHYR_ARCH_X86_INCLUDE_X86_MMU_H */
