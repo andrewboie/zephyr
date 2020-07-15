@@ -38,6 +38,20 @@
 /** Region will be accessible to user mode (normally supervisor-only) */
 #define K_MAP_USER		BIT(5)
 
+/*
+ * This is the offset to subtract from a virtual address mapped in the
+ * kernel's permanent mapping of RAM, to obtain its physical address.
+ * virt_addr - Z_VM_OFFSET = phys_addr.
+ *
+ * This only works for virtual addresses within the interval
+ * [CONFIG_KERNEL_VM_BASE, CONFIG_KERNEL_VM_BASE + (CONFIG_SRAM_SIZE * 1024)).
+ */
+#ifdef CONFIG_VIRTUAL_MEMORY
+#define Z_VM_OFFSET	(CONFIG_KERNEL_VM_BASE - CONFIG_SRAM_BASE_ADDRESS)
+#else
+#define Z_VM_OFFSET	0
+#endif
+
 #ifndef _ASMLANGUAGE
 #include <stdint.h>
 #include <stddef.h>
