@@ -695,6 +695,30 @@ int arch_mem_map(void *dest, uintptr_t addr, size_t size, uint32_t flags)
 	return 0;
 }
 
+#if CONFIG_VIRTUAL_MEMORY
+void z_x86_mmu_identity_map_remove(void)
+{
+	size_t scope = get_table_scope[0];
+	size_t size = ROUND_UP(CONFIG_SRAM_SIZE * 1024, scope);
+	uint8_t *pos = (uint8_t *)CONFIG_SRAM_BASE_ADDRESS;
+
+	/* We booted with RAM mapped both to its identity and virtual
+	 * mapping starting at CONFIG_KERNEL_VM_BASE. This was done by
+	 * double-linking the relevant tables in the top-level table.
+	 * At this point we don't need the identity mapping(s) any more,
+	 * zero the top-level table entries corresponding to the
+	 * physical mapping.
+	 */
+	while (size) {
+		pentry_t *entry = get_entry_ptr(&z_x86_kernel_ptables, pos, 0);
+
+		*entry = 0;
+		pos += scope;
+		size -= scope;
+	}
+}
+#endif
+
 #if CONFIG_X86_STACK_PROTECTION
 /* Legacy stack guard function. This will eventually be replaced in favor
  * of memory-mapping stacks (with a non-present mapping immediately below each
