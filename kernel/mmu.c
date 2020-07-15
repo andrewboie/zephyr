@@ -19,6 +19,47 @@ LOG_MODULE_DECLARE(os);
  */
 static struct k_spinlock mm_lock;
 
+#ifdef CONFIG_VIRTUAL_MEMORY
+/*
+ * Overall virtual memory map:
+ *
+ * +--------------+ <- CONFIG_KERNEL_VM_BASE
+ * | Mapping for  |
+ * | all RAM      |
+ * |              |
+ * |              |
+ * +--------------+ <- mapping_limit
+ * | Available    |
+ * | virtual mem  |
+ * |              |
+ * |..............| <- mapping_pos
+ * | Mapping      |
+ * +--------------+
+ * | Mapping      |
+ * +--------------+
+ * | ...          |
+ * +--------------+
+ * | Mapping      |
+ * +--------------+ <- CONFIG_KERNEL_VM_LIMIT
+ */
+
+ /* Current position for memory mappings in kernel memory.
+  * At the moment, all kernel memory mappings are permanent.
+  * k_map() mappings start at the end of the address space, and grow
+  * downward.
+  *
+  * The Kconfig value is inclusive so add one, even if it wraps around to 0.
+  */
+static uint8_t *mapping_pos =
+		(uint8_t *)((uintptr_t)CONFIG_KERNEL_VM_LIMIT + 1UL);
+
+/* Lower-limit of virtual address mapping. Immediately below this is the
+ * permanent mapping for all SRAM.
+ */
+static uint8_t *mapping_limit = (uint8_t *)((uintptr_t)CONFIG_KERNEL_VM_BASE +
+					    KB((size_t)CONFIG_SRAM_SIZE));
+#endif
+
 size_t k_map_region_align(uintptr_t *aligned_addr, size_t *aligned_size,
 			  uintptr_t phys_addr, size_t size)
 {
@@ -46,15 +87,21 @@ void k_map(uint8_t **virt_addr, uintptr_t phys_addr, size_t size,
 	addr_offset = k_map_region_align(&aligned_addr, &aligned_size,
 					 phys_addr, size);
 
+	key = k_spin_lock(&mm_lock);
+#ifdef CONFIG_VIRTUAL_MEMORY
 	/* Carve out some unused virtual memory from the top of the
 	 * address space
 	 */
-	key = k_spin_lock(&mm_lock);
-
-	/* TODO: For now, do an identity mapping, we haven't implemented
-	 * virtual memory yet
-	 */
+	if ((mapping_pos - aligned_size) < mapping_limit) {
+		LOG_ERR("insufficient kernel virtual address space");
+		goto fail;
+	}
+	mapping_pos -= aligned_size;
+	dest_virt = mapping_pos;
+#else
+	/* Identity mapping */
 	dest_virt = (uint8_t *)aligned_addr;
+#endif
 
 	LOG_DBG("arch_mem_map(%p, 0x%lx, %zu, %x) offset %lu\n", dest_virt,
 		aligned_addr, aligned_size, flags, addr_offset);
