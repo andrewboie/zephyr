@@ -47,7 +47,7 @@ static void pcie_mm_init(void)
 			size = bus_segs[i].n_buses * (32 * 8 * 4096);
 
 			device_map((mm_reg_t *)&bus_segs[i].mmio, phys_addr,
-				   size, K_MAP_CACHE_NONE);
+				   size, K_MEM_CACHE_NONE);
 		}
 	}
 #endif
