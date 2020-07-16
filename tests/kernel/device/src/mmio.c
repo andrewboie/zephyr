@@ -30,7 +30,7 @@ const struct foo_single_config_info foo0_config = {
 
 int foo_single_init(struct device *device)
 {
-	DEVICE_MMIO_MAP(device, K_MAP_CACHE_NONE);
+	DEVICE_MMIO_MAP(device, K_MEM_CACHE_NONE);
 
 	return 0;
 }
@@ -123,8 +123,8 @@ const struct foo_mult_config_info foo12_config = {
 
 int foo_mult_init(struct device *device)
 {
-	DEVICE_MMIO_NAMED_MAP(device, courge, K_MAP_CACHE_NONE);
-	DEVICE_MMIO_NAMED_MAP(device, grault, K_MAP_CACHE_NONE);
+	DEVICE_MMIO_NAMED_MAP(device, courge, K_MEM_CACHE_NONE);
+	DEVICE_MMIO_NAMED_MAP(device, grault, K_MEM_CACHE_NONE);
 
 	return 0;
 }
@@ -221,8 +221,8 @@ void test_mmio_toplevel(void)
 	mm_reg_t regs_foo3, regs_foo4;
 	const struct z_device_mmio_rom *rom_foo3, *rom_foo4;
 
-	DEVICE_MMIO_TOPLEVEL_MAP(foo3, K_MAP_CACHE_NONE);
-	DEVICE_MMIO_TOPLEVEL_MAP(foo4, K_MAP_CACHE_NONE);
+	DEVICE_MMIO_TOPLEVEL_MAP(foo3, K_MEM_CACHE_NONE);
+	DEVICE_MMIO_TOPLEVEL_MAP(foo4, K_MEM_CACHE_NONE);
 
 	regs_foo3 = DEVICE_MMIO_TOPLEVEL_GET(foo3);
 	regs_foo4 = DEVICE_MMIO_TOPLEVEL_GET(foo4);
@@ -262,7 +262,7 @@ void test_mmio_device_map(void)
 #ifdef DEVICE_MMIO_IS_IN_RAM
 	mm_reg_t regs = 0;
 
-	device_map(&regs, 0xF0000000, 0x1000, K_MAP_CACHE_NONE);
+	device_map(&regs, 0xF0000000, 0x1000, K_MEM_CACHE_NONE);
 
 	zassert_not_equal(regs, 0, "bad regs");
 #else
