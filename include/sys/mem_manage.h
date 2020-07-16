@@ -14,43 +14,48 @@
  */
 
 /** No caching. Most drivers want this. */
-#define K_MAP_CACHE_NONE	0
+#define K_MEM_CACHE_NONE	0
 
 /** Write-through caching. Used by certain drivers. */
-#define K_MAP_CACHE_WT		1
+#define K_MEM_CACHE_WT		1
 
 /** Full write-back caching. Any RAM mapped wants this. */
-#define K_MAP_CACHE_WB		2
+#define K_MEM_CACHE_WB		2
 
 /** Reserved bits for cache modes in k_map() flags argument */
-#define K_MAP_CACHE_MASK	(BIT(3) - 1)
+#define K_MEM_CACHE_MASK	(BIT(3) - 1)
 
 /*
  * Region permission attributes. Default is read-only, no user, no exec
  */
 
 /** Region will have read/write access (and not read-only) */
-#define K_MAP_RW		BIT(3)
+#define K_MEM_PERM_RW		BIT(3)
 
 /** Region will be executable (normally forbidden) */
-#define K_MAP_EXEC		BIT(4)
+#define K_MEM_PERM_EXEC		BIT(4)
 
 /** Region will be accessible to user mode (normally supervisor-only) */
-#define K_MAP_USER		BIT(5)
+#define K_MEM_PERM_USER		BIT(5)
 
 /*
  * This is the offset to subtract from a virtual address mapped in the
  * kernel's permanent mapping of RAM, to obtain its physical address.
- * virt_addr - Z_VM_OFFSET = phys_addr.
+ *
+ * 	virt_addr - Z_VM_OFFSET = phys_addr
  *
  * This only works for virtual addresses within the interval
  * [CONFIG_KERNEL_VM_BASE, CONFIG_KERNEL_VM_BASE + (CONFIG_SRAM_SIZE * 1024)).
+ *
+ * This macro is intended for assembly and linker code. Use with care.
  */
 #ifdef CONFIG_VIRTUAL_MEMORY
-#define Z_VM_OFFSET	(CONFIG_KERNEL_VM_BASE - CONFIG_SRAM_BASE_ADDRESS)
+#define Z_MEM_VM_OFFSET	(CONFIG_KERNEL_VM_BASE - CONFIG_SRAM_BASE_ADDRESS)
 #else
-#define Z_VM_OFFSET	0
+#define Z_MEM_VM_OFFSET	0
 #endif
+
+#define Z_MEM_PHYS_ADDR(virt)	((virt) - Z_MEM_VM_OFFSET)
 
 #ifndef _ASMLANGUAGE
 #include <stdint.h>
@@ -80,11 +85,7 @@ extern "C" {
  * Unused bits in 'flags' are reserved for future expansion.
  * A caching mode must be selected. By default, the region is read-only
  * with user access and code execution forbidden. This policy is changed
- * by passing K_MAP_* macros into the 'flags' parameter.
- *
- * This maps memory in the kernel's part of the address space. Using
- * K_MAP_USER is almost never a good idea here and may be forbidden
- * in the future.
+ * by passing K_MEM_CACHE_* and K_MEM_PERM_* macros into the 'flags' parameter.
  *
  * If there is insufficient virtual address space for the mapping, or
  * bad flags are passed in, or if additional memory is needed to update
@@ -100,23 +101,36 @@ extern "C" {
  * @param size Size of the memory region
  * @param flags Caching mode and access flags, see K_MAP_* macros
  */
-void k_map(uint8_t **linear_addr, uintptr_t phys_addr, size_t size,
-	   uint32_t flags);
+void k_mem_map(uint8_t **linear_addr, uintptr_t phys_addr, size_t size,
+	       uint32_t flags);
 
 /**
- * Given an arbitrary region, provide a page-aligned region that covers it
+ * Given an arbitrary region, provide a aligned region that covers it
  *
- * This API is only available if CONFIG_MMU is enabled.
+ * The returned region will have both its base address and size aligned
+ * to the provided alignment value.
  *
- * @param aligned_addr [out] Aligned physical address
+ * @param aligned_addr [out] Aligned address
  * @param aligned_size [out] Aligned region size
  * @param addr Region base address
  * @param size Region size
+ * @param align What to align the address and size to
  * @retval offset between aligned_addr and addr
  */
-size_t k_map_region_align(uintptr_t *aligned_addr, size_t *aligned_size,
-			  uintptr_t addr, size_t size);
+size_t k_mem_region_align(uintptr_t *aligned_addr, size_t *aligned_size,
+			  uintptr_t addr, size_t size, size_t align);
 
+/* Just like Z_MEM_PHYS_ADDR() but with type safety and assertions */
+static inline uintptr_t z_mem_phys_addr(void *virt)
+{
+	uintptr_t addr = (uintptr_t)virt;
+
+	__ASSERT((addr >= CONFIG_KERNEL_VM_BASE) &&
+		 (addr < (CONFIG_KERNEL_VM_BASE + (CONFIG_SRAM_SIZE * 1024))),
+		 "address %p not in permanent mappings", virt);
+
+	return Z_MEM_PHYS_ADDR(addr);
+}
 #ifdef __cplusplus
 }
 #endif

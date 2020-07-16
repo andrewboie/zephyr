@@ -32,7 +32,7 @@ static struct k_spinlock mm_lock;
  * | Available    |
  * | virtual mem  |
  * |              |
- * |..............| <- mapping_pos
+ * |..............| <- mapping_pos (grows downward as more mappings are made)
  * | Mapping      |
  * +--------------+
  * | Mapping      |
@@ -60,23 +60,23 @@ static uint8_t *mapping_limit = (uint8_t *)((uintptr_t)CONFIG_KERNEL_VM_BASE +
 					    KB((size_t)CONFIG_SRAM_SIZE));
 #endif
 
-size_t k_map_region_align(uintptr_t *aligned_addr, size_t *aligned_size,
-			  uintptr_t phys_addr, size_t size)
+size_t k_mem_region_align(uintptr_t *aligned_addr, size_t *aligned_size,
+			  uintptr_t phys_addr, size_t size, size_t align)
 {
 	size_t addr_offset;
 
 	/* The actual mapped region must be page-aligned. Round down the
 	 * physical address and pad the region size appropriately
 	 */
-	*aligned_addr = ROUND_DOWN(phys_addr, CONFIG_MMU_PAGE_SIZE);
+	*aligned_addr = ROUND_DOWN(phys_addr, align);
 	addr_offset = phys_addr - *aligned_addr;
-	*aligned_size = ROUND_UP(size + addr_offset, CONFIG_MMU_PAGE_SIZE);
+	*aligned_size = ROUND_UP(size + addr_offset, align);
 
 	return addr_offset;
 }
 
-void k_map(uint8_t **virt_addr, uintptr_t phys_addr, size_t size,
-	   uint32_t flags)
+void k_mem_map(uint8_t **virt_addr, uintptr_t phys_addr, size_t size,
+	       uint32_t flags)
 {
 	uintptr_t aligned_addr, addr_offset;
 	size_t aligned_size;
@@ -84,8 +84,9 @@ void k_map(uint8_t **virt_addr, uintptr_t phys_addr, size_t size,
 	k_spinlock_key_t key;
 	uint8_t *dest_virt;
 
-	addr_offset = k_map_region_align(&aligned_addr, &aligned_size,
-					 phys_addr, size);
+	addr_offset = k_mem_region_align(&aligned_addr, &aligned_size,
+					 phys_addr, size,
+					 CONFIG_MMU_PAGE_SIZE);
 
 	key = k_spin_lock(&mm_lock);
 #ifdef CONFIG_VIRTUAL_MEMORY
