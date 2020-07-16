@@ -124,7 +124,7 @@ int ioapic_init(struct device *unused)
 {
 	ARG_UNUSED(unused);
 
-	DEVICE_MMIO_TOPLEVEL_MAP(ioapic_regs, K_MAP_CACHE_NONE);
+	DEVICE_MMIO_TOPLEVEL_MAP(ioapic_regs, K_MEM_CACHE_NONE);
 
 #ifdef CONFIG_IOAPIC_MASK_RTE
 	int32_t ix;	/* redirection table index */

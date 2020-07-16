@@ -86,7 +86,7 @@ void z_loapic_enable(unsigned char cpu_number)
 
 #ifdef DEVICE_MMIO_IS_IN_RAM
 	device_map(&z_loapic_regs, CONFIG_LOAPIC_BASE_ADDRESS, 0x1000,
-		   K_MAP_CACHE_NONE);
+		   K_MEM_CACHE_NONE);
 #endif /* DEVICE_MMIO_IS_IN_RAM */
 #ifndef CONFIG_X2APIC
 	/*
