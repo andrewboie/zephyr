@@ -68,6 +68,8 @@
  */
 #if defined(CONFIG_ARCH_POSIX)
 #define GROUP_LINK_IN(where)
+#elif defined(CONFIG_VIRTUAL_MEMORY)
+#define GROUP_LINK_IN(where) > RAM AT> ROM
 #else
 #define GROUP_LINK_IN(where) > where
 #endif
@@ -85,13 +87,13 @@
  */
 #if defined(CONFIG_ARCH_POSIX)
 #define GROUP_DATA_LINK_IN(vregion, lregion)
-#else
-#ifdef CONFIG_XIP
+#elif defined(CONFIG_XIP)
 #define GROUP_DATA_LINK_IN(vregion, lregion) > vregion AT> lregion
+#elif defined(CONFIG_VIRTUAL_MEMORY)
+#define GROUP_DATA_LINK_IN(vregion, lregion) > RAM AT> ROM
 #else
 #define GROUP_DATA_LINK_IN(vregion, lregion) > vregion
 #endif
-#endif /*CONFIG_ARCH_POSIX*/
 
 /*
  * The GROUP_FOLLOWS_AT() macro is located at the end of the section
@@ -112,8 +114,8 @@
  * own parameter since it needs abstraction across the different toolchains.
  * If not required, the <options> and <align> parameters should be left blank.
  */
-
 #define SECTION_PROLOGUE(name, options, align) name options : align
+
 
 /*
  * As for SECTION_PROLOGUE(), except that this one must (!) be used

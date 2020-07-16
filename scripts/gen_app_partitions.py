@@ -75,7 +75,7 @@ footer_template = """
 """
 
 linker_start_seq = """
-	SECTION_PROLOGUE(_APP_SMEM_SECTION_NAME,,)
+	SECTION_PROLOGUE(_APP_SMEM_SECTION_NAME,,ALIGN(4096))
 	{
 		APP_SHARED_ALIGN;
 		_app_smem_start = .;

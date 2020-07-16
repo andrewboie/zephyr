@@ -35,9 +35,13 @@ MEMORY
     {
 #ifdef CONFIG_XIP
     ROM (rx)        : ORIGIN = PHYS_LOAD_ADDR, LENGTH = DT_REG_SIZE(DT_CHOSEN(zephyr_flash))
-#endif /* CONFIG_XIP */
+#endif
+#if defined(CONFIG_VIRTUAL_MEMORY)
+    ROM (rx)        : ORIGIN = KERNEL_BASE_ADDR, LENGTH = KERNEL_RAM_SIZE
+    RAM (wx)        : ORIGIN = (CONFIG_KERNEL_VM_BASE + CONFIG_X86_KERNEL_OFFSET), LENGTH = KERNEL_RAM_SIZE
+#else
     RAM (wx)        : ORIGIN = KERNEL_BASE_ADDR, LENGTH = KERNEL_RAM_SIZE
-
+#endif
     /*
      * It doesn't matter where this region goes as it is stripped from the
      * final ELF image. The address doesn't even have to be valid on the

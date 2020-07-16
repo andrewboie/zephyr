@@ -40,10 +40,11 @@
 #include <linker/linker-defs.h>
 #include <offsets.h>
 #include <sys/util.h>
+#include <sys/mem_manage.h>
 
 #include <linker/linker-tool.h>
 
-#ifdef CONFIG_XIP
+#if defined(CONFIG_XIP) || defined(CONFIG_VIRTUAL_MEMORY)
 	#define ROMABLE_REGION ROM
 	#define RAMABLE_REGION RAM
 #else
@@ -61,7 +62,8 @@
 	#define MMU_PAGE_ALIGN
 #endif
 
-ENTRY(CONFIG_KERNEL_ENTRY)
+epoint = Z_MEM_PHYS_ADDR(CONFIG_KERNEL_ENTRY);
+ENTRY(epoint)
 
 /* SECTIONS definitions */
 SECTIONS
@@ -85,18 +87,18 @@ SECTIONS
 	. = ALIGN(8);
 
 	_image_rom_start = PHYS_LOAD_ADDR;
-	_image_text_start = PHYS_LOAD_ADDR;
+
 	SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
 	{
-
+	_image_text_start = .;
 /* Located in generated directory. This file is populated by calling
  * zephyr_linker_sources(ROM_START ...). This typically contains the vector
  * table and debug information.
  */
 #include <snippets-rom-start.ld>
 
-	*(.text_start)
-	*(".text_start.*")
+	KEEP(*(.text_start))
+	KEEP(*(".text_start.*"))
 	*(.text)
 	*(".text.*")
 	*(.gnu.linkonce.t.*)
@@ -119,7 +121,7 @@ SECTIONS
 
 #include <linker/common-rom.ld>
 
-	SECTION_PROLOGUE(_RODATA_SECTION_NAME,,)
+	SECTION_PROLOGUE(_RODATA_SECTION_NAME,,ALIGN(4096))
 	{
 	*(.rodata)
 	*(".rodata.*")
@@ -198,7 +200,7 @@ SECTIONS
 	_app_smem_num_words = _app_smem_size >> 2;
 #endif /* CONFIG_USERSPACE */
 
-	SECTION_PROLOGUE(_BSS_SECTION_NAME, (NOLOAD),)
+	SECTION_PROLOGUE(_BSS_SECTION_NAME, ,ALIGN(4096))
 	{
 	MMU_PAGE_ALIGN
 #if !defined(CONFIG_USERSPACE)
@@ -210,24 +212,12 @@ SECTIONS
 	 */
 	. = ALIGN(4);
 	__kernel_ram_start = .;
-	__bss_start = .;
 
-	*(.bss)
-	*(".bss.*")
-	*(COMMON)
-	*(".kernel_bss.*")
-
-	/*
-	 * As memory is cleared in words only, it is simpler to ensure the BSS
-	 * section ends on a 4 byte boundary. This wastes a maximum of 3 bytes.
-	 */
-	. = ALIGN(4);
-	__bss_end = .;
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
 
 	__bss_num_words	= (__bss_end - __bss_start) >> 2;
 
-	SECTION_PROLOGUE(_NOINIT_SECTION_NAME, (NOLOAD),)
+	SECTION_PROLOGUE(_NOINIT_SECTION_NAME, ,ALIGN(4096))
 	{
 	/*
 	 * This section is used for non-initialized objects that
@@ -246,9 +236,21 @@ SECTIONS
 
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
 
-	SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,)
+	SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,ALIGN(4096))
 	{
+	__bss_start = .;
 
+	*(.bss)
+	*(".bss.*")
+	*(COMMON)
+	*(".kernel_bss.*")
+
+	/*
+	 * As memory is cleared in words only, it is simpler to ensure the BSS
+	 * section ends on a 4 byte boundary. This wastes a maximum of 3 bytes.
+	 */
+	. = ALIGN(4);
+	__bss_end = .;
 	__data_ram_start = .;
 
 	*(.data)
@@ -339,9 +341,8 @@ SECTIONS
 
 /* Page tables. May disturb memory addresses that come after this */
 #if CONFIG_X86_MMU
-	SECTION_DATA_PROLOGUE(boot_page_tables,,)
+	SECTION_DATA_PROLOGUE(boot_page_tables,,ALIGN(4096))
 	{
-	. = ALIGN(4096);
 	z_x86_pagetables_start = .;
 	KEEP(*(pagetables))
 	/* Top-level paging structure is the last thing in this section */
