@@ -698,7 +698,7 @@ int arch_mem_map(void *dest, uintptr_t addr, size_t size, uint32_t flags)
 #if CONFIG_VIRTUAL_MEMORY
 void z_x86_mmu_identity_map_remove(void)
 {
-	size_t scope = get_table_scope[0];
+	size_t scope = get_table_scope(0);
 	size_t size = ROUND_UP(CONFIG_SRAM_SIZE * 1024, scope);
 	uint8_t *pos = (uint8_t *)CONFIG_SRAM_BASE_ADDRESS;
 
