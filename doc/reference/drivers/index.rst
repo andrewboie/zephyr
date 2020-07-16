@@ -302,7 +302,7 @@ In the implementation of the common init function:
   {
         const struct my_driver_config *config = device->config_info;
 
-        DEVICE_MMIO_MAP(device, K_MAP_CACHE_NONE);
+        DEVICE_MMIO_MAP(device, K_MEM_CACHE_NONE);
 
         /* Do other initialization stuff */
         ...
@@ -474,7 +474,7 @@ is made within the init function:
    int my_driver_init(struct device *device)
    {
       ...
-      DEVICE_MMIO_MAP(device, K_MAP_CACHE_NONE);
+      DEVICE_MMIO_MAP(device, K_MEM_CACHE_NONE);
       ...
    }
 
@@ -535,8 +535,8 @@ For example:
    int my_driver_init(struct device *device)
    {
       ...
-      DEVICE_MMIO_NAMED_MAP(device, courge, K_MAP_CACHE_NONE);
-      DEVICE_MMIO_NAMED_MAP(device, grault, K_MAP_CACHE_NONE);
+      DEVICE_MMIO_NAMED_MAP(device, courge, K_MEM_CACHE_NONE);
+      DEVICE_MMIO_NAMED_MAP(device, grault, K_MEM_CACHE_NONE);
       ...
    }
 
@@ -566,7 +566,7 @@ for example:
    void some_init_code(...)
    {
       ...
-      DEVICE_MMIO_TOPLEVEL_MAP(my_regs, K_MAP_CACHE_NONE);
+      DEVICE_MMIO_TOPLEVEL_MAP(my_regs, K_MEM_CACHE_NONE);
       ...
    }
 
@@ -591,7 +591,7 @@ may be used directly:
       uintptr_t phys_addr = pcie_get_mbar(...);
       size_t size = ...
 
-      device_map(DEVICE_MMIO_RAM_PTR(dev), phys_addr, size, K_MAP_CACHE_NONE);
+      device_map(DEVICE_MMIO_RAM_PTR(dev), phys_addr, size, K_MEM_CACHE_NONE);
       ...
    }
 
