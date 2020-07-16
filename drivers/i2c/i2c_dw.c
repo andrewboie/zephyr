@@ -621,10 +621,10 @@ static int i2c_dw_initialize(struct device *dev)
 		pcie_set_cmd(rom->pcie_bdf, PCIE_CONF_CMDSTAT_MEM, true);
 
 		device_map(DEVICE_MMIO_RAM_PTR(dev), mmio_phys_addr,
-			   0x1000, K_MAP_CACHE_NONE);
+			   0x1000, K_MEM_CACHE_NONE);
 	}
 #else
-	DEVICE_MMIO_MAP(dev, K_MAP_CACHE_NONE);
+	DEVICE_MMIO_MAP(dev, K_MEM_CACHE_NONE);
 #endif
 
 	k_sem_init(&dw->device_sync_sem, 0, UINT_MAX);
