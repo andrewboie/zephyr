@@ -53,7 +53,7 @@
 	 * work.
 	 */
 	/* Use Z_VM_OFFSET to convert to a physical address */
-	movl $(z_x86_kernel_ptables - Z_VM_OFFSET), %eax
+	movl $Z_MEM_PHYS_ADDR(z_x86_kernel_ptables), %eax
 	movl %eax, %cr3
 
 #ifdef CONFIG_X86_PAE
@@ -75,11 +75,11 @@
 	movl %eax, %cr0
 
 #if CONFIG_VIRTUAL_MEMORY
-	/* Jump to a virtual address, which works because the mappings are the
-	 * same.
+	/* Jump to a virtual address, which works because the identity and
+	 * virtual mappings both are to the same physical address.
 	 */
 	lea vm_enter, %eax
-	jmp *%ecx
+	jmp *%eax
 vm_enter:
 	/* We are now executing in virtual memory. We'll un-map the identity
 	 * mappings later once we are in the C domain
@@ -89,6 +89,9 @@ vm_enter:
 .endm
 
 SECTION_FUNC(TEXT_START, __start)
+#ifndef CONFIG_XIP
+	install_page_tables
+#endif /* CONFIG_XIP */
 
 #include "../common.S"
 
@@ -103,10 +106,6 @@ SECTION_FUNC(TEXT_START, __start)
 	 */
 
 	cli
-
-#ifndef CONFIG_XIP
-	install_page_tables
-#endif /* CONFIG_XIP */
 
 	/*
 	 * Although the bootloader sets up an Interrupt Descriptor Table (IDT)
