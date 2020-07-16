@@ -6,6 +6,7 @@
 
 #include <zephyr.h>
 #include <sys/printk.h>
+#include <x86_mmu.h>
 
 void main(void)
 {
