@@ -78,7 +78,8 @@ struct z_device_mmio_rom {
  *		users will want some DEVICE_MMIO_RAM_PTR() value
  * @param phys_addr Physical address base of the MMIO region
  * @param size Size of the MMIO region
- * @param flags Caching mode and access flags, see K_MAP_* macros
+ * @param flags Caching mode and access flags, see K_MEM_CACHE_* and
+ *              K_MEM_PERM_* macros
  */
 static inline void device_map(mm_reg_t *virt_addr, uintptr_t phys_addr,
 			      size_t size, uint32_t flags)
@@ -87,7 +88,8 @@ static inline void device_map(mm_reg_t *virt_addr, uintptr_t phys_addr,
 	/* Pass along flags and add that we want supervisor mode
 	 * read-write access.
 	 */
-	k_map((uint8_t **)virt_addr, phys_addr, size, flags | K_MAP_RW);
+	k_mem_map((uint8_t **)virt_addr, phys_addr, size,
+		  flags | K_MEM_PERM_RW);
 #else
 	ARG_UNUSED(size);
 	ARG_UNUSED(flags);
