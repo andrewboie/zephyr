@@ -231,7 +231,7 @@ int e1000_probe(struct device *device)
 	size = KB(128); /* TODO: get from PCIe */
 
 	device_map(&dev->address, phys_addr, size,
-		   K_MAP_CACHE_NONE);
+		   K_MEM_CACHE_NONE);
 
 	/* Setup TX descriptor */
 
