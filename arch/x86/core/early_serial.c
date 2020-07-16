@@ -87,7 +87,7 @@ void z_x86_early_serial_init(void)
 #else
 	phys = X86_SOC_EARLY_SERIAL_MMIO8_ADDR;
 #endif
-	device_map(&mmio, phys, 0x1000, K_MAP_CACHE_NONE);
+	device_map(&mmio, phys, 0x1000, K_MEM_CACHE_NONE);
 #endif /* DEVICE_MMIO_IS_IN_RAM */
 
 	OUT(REG_IER, IER_DISABLE);     /* Disable interrupts */
