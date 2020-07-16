@@ -524,7 +524,7 @@ int gpio_intel_apl_init(struct device *dev)
 {
 	struct gpio_intel_apl_data *data = dev->driver_data;
 
-	DEVICE_MMIO_NAMED_MAP(dev, reg_base, K_MAP_CACHE_NONE);
+	DEVICE_MMIO_NAMED_MAP(dev, reg_base, K_MEM_CACHE_NONE);
 	data->pad_base = sys_read32(regs(dev) + REG_PAD_BASE_ADDR);
 
 	__ASSERT(nr_isr_devs < GPIO_INTEL_APL_NR_SUBDEVS, "too many subdevs");
