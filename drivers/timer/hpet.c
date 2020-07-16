@@ -121,7 +121,7 @@ int z_clock_driver_init(struct device *device)
 	extern int z_clock_hw_cycles_per_sec;
 	uint32_t hz;
 
-	DEVICE_MMIO_TOPLEVEL_MAP(hpet_regs, K_MAP_CACHE_NONE);
+	DEVICE_MMIO_TOPLEVEL_MAP(hpet_regs, K_MEM_CACHE_NONE);
 
 	IRQ_CONNECT(DT_INST_IRQN(0),
 		    DT_INST_IRQ(0, priority),
