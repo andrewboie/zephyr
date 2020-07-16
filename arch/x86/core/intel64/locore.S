@@ -22,8 +22,6 @@
 	pop %rax
 .endm
 
-#define PHYS_ADDR(sym)	(sym - Z_VM_OFFSET)
-
 /*
  * Defintions/macros for enabling paging
  *
@@ -59,7 +57,7 @@
 	clts
 
 	/* Page tables created at build time by gen_mmu.py */
-	movl $PHYS_ADDR(z_x86_kernel_ptables), %eax
+	movl $Z_MEM_PHYS_ADDR(z_x86_kernel_ptables), %eax
 	movl %eax, %cr3
 
 	set_efer
@@ -76,7 +74,7 @@
 	clts
 
 	/* Page tables created at build time by gen_mmu.py */
-	movq $PHYS_ADDR(z_x86_kernel_ptables), %rax
+	movq $Z_MEM_PHYS_ADDR(z_x86_kernel_ptables), %rax
 	movq %rax, %cr3
 
 	set_efer
@@ -101,8 +99,8 @@ x86_ap_start:
 	 * same flat environment that the BSP gets from the loader.
 	 */
 
-	lgdt PHYS_ADDR(gdt48)
-	lidt PHYS_ADDR(idt48)
+	lgdt Z_MEM_PHYS_ADDR(gdt48)
+	lidt Z_MEM_PHYS_ADDR(idt48)
 	movw $1, %ax
 	lmsw %ax
 	jmpl $X86_KERNEL_CS_32, $1f

@@ -196,15 +196,7 @@ static const struct paging_level paging_levels[] = {
  */
 static inline void *ram_phys_to_virt(uintptr_t phys)
 {
-	return (void *)(phys + Z_VM_OFFSET);
-}
-
-/* For a virtual address somewhere in the permanent RAM mapping area, return
- * the associated physical address
- */
-static inline uintptr_t ram_virt_to_phys(void *virt)
-{
-	return (uintptr_t)virt - Z_VM_OFFSET;
+	return (void *)(phys + Z_MEM_VM_OFFSET);
 }
 
 /* For a table at a particular level, get the entry index that corresponds to
@@ -310,7 +302,7 @@ pentry_t *z_x86_page_tables_get(void)
 
 void z_x86_page_tables_set(pentry_t *ptables)
 {
-	uintptr_t phys = ram_virt_to_phys(ptables);
+	uintptr_t phys = z_mem_phys_addr(ptables);
 
 #ifdef CONFIG_X86_64
 	__asm__ volatile("movq %0, %%cr3\n\t" : : "r" (phys) : "memory");
@@ -382,7 +374,7 @@ static void dump_ptables(pentry_t *table, uint8_t *base, int level)
 	const struct paging_level *info = &paging_levels[level];
 
 	printk("%s at %p (0x%lx) ", info->name, table,
-		ram_virt_to_phys(table));
+		z_mem_phys_addr(table));
 	if (level == 0) {
 		printk("entire address space\n");
 	} else {
@@ -608,7 +600,7 @@ static int page_map_set(pentry_t *ptables, void *virt, pentry_t entry_val,
 			if (new_table == NULL) {
 				return -ENOMEM;
 			}
-			*entryp = ram_virt_to_phys(new_table) | INT_FLAGS;
+			*entryp = z_mem_phys_addr(new_table) | INT_FLAGS;
 			table = new_table;
 		} else {
 			/* We fail an assertion here due to no support for
@@ -644,27 +636,27 @@ int arch_mem_map(void *dest, uintptr_t addr, size_t size, uint32_t flags)
 	 * BIOS-populated MTRR values such that these cache settings are
 	 * redundant.
 	 */
-	switch (flags & K_MAP_CACHE_MASK) {
-	case K_MAP_CACHE_NONE:
+	switch (flags & K_MEM_CACHE_MASK) {
+	case K_MEM_CACHE_NONE:
 		entry_flags |= MMU_PCD;
 		break;
-	case K_MAP_CACHE_WT:
+	case K_MEM_CACHE_WT:
 		entry_flags |= MMU_PWT;
 		break;
-	case K_MAP_CACHE_WB:
+	case K_MEM_CACHE_WB:
 		break;
 	default:
 		return -ENOTSUP;
 	}
-	if ((flags & K_MAP_RW) != 0) {
+	if ((flags & K_MEM_PERM_RW) != 0) {
 		entry_flags |= MMU_RW;
 	}
-	if ((flags & K_MAP_USER) != 0) {
+	if ((flags & K_MEM_PERM_USER) != 0) {
 		/* TODO: user mode support
 		 * entry_flags |= MMU_US; */
 		return -ENOTSUP;
 	}
-	if ((flags & K_MAP_EXEC) == 0) {
+	if ((flags & K_MEM_PERM_EXEC) == 0) {
 		entry_flags |= MMU_XD;
 	}
 
@@ -698,9 +690,11 @@ int arch_mem_map(void *dest, uintptr_t addr, size_t size, uint32_t flags)
 #if CONFIG_VIRTUAL_MEMORY
 void z_x86_mmu_identity_map_remove(void)
 {
-	size_t scope = get_table_scope(0);
-	size_t size = ROUND_UP(CONFIG_SRAM_SIZE * 1024, scope);
-	uint8_t *pos = (uint8_t *)CONFIG_SRAM_BASE_ADDRESS;
+	size_t size, scope = get_entry_scope(0);
+	uint8_t *pos;
+
+	k_mem_region_align((uintptr_t *)&pos, &size, CONFIG_SRAM_BASE_ADDRESS,
+			   CONFIG_SRAM_SIZE * 1024, scope);
 
 	/* We booted with RAM mapped both to its identity and virtual
 	 * mapping starting at CONFIG_KERNEL_VM_BASE. This was done by
@@ -796,8 +790,8 @@ int arch_buffer_validate(void *addr, size_t size, int write)
 	size_t aligned_size;
 
 	/* addr/size arbitrary, fix this up into an aligned region */
-	k_map_region_align((uintptr_t *)&virt, &aligned_size,
-			   (uintptr_t)addr, size);
+	k_mem_region_align((uintptr_t *)&virt, &aligned_size,
+			   (uintptr_t)addr, size, CONFIG_MMU_PAGE_SIZE);
 
 	for (size_t offset = 0; offset < aligned_size;
 	     offset += CONFIG_MMU_PAGE_SIZE) {
@@ -1017,7 +1011,7 @@ static void setup_thread_tables(struct k_thread *thread)
 			(void)memcpy(user_table, master_table,
 				     table_size(level));
 
-			*link = ram_virt_to_phys(user_table) | INT_FLAGS;
+			*link = z_mem_phys_addr(user_table) | INT_FLAGS;
 		}
 	}
 }
