@@ -363,12 +363,12 @@ static int uart_ns16550_configure(struct device *dev,
 		pcie_set_cmd(dev_cfg->pcie_bdf, PCIE_CONF_CMDSTAT_MEM, true);
 
 		device_map(DEVICE_MMIO_RAM_PTR(dev), phys, 0x1000,
-			   K_MAP_CACHE_NONE);
+			   K_MEM_CACHE_NONE);
 	} else
 #endif /* UART_NS16550_PCIE_ENABLED */
 	{
 		/* Map directly from DTS */
-		DEVICE_MMIO_MAP(dev, K_MAP_CACHE_NONE);
+		DEVICE_MMIO_MAP(dev, K_MEM_CACHE_NONE);
 	}
 #endif /* UART_NS15660_ACCESS_IOPORT */
 
