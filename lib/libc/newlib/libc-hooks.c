@@ -32,48 +32,44 @@ MALLOC_BSS static unsigned char __aligned(CONFIG_NEWLIB_LIBC_ALIGNED_HEAP_SIZE)
 #else /* CONFIG_NEWLIB_LIBC_ALIGNED_HEAP_SIZE */
 
 /* Heap base and size are determined based on the available unused SRAM. */
-
 #define USED_RAM_END_ADDR   POINTER_TO_UINT(&_end)
 
-#if CONFIG_X86
-#define PHYS_RAM_ADDR DT_REG_ADDR(DT_CHOSEN(zephyr_sram))
-#define PHYS_RAM_SIZE DT_REG_SIZE(DT_CHOSEN(zephyr_sram))
-#define USED_RAM_SIZE (USED_RAM_END_ADDR - PHYS_RAM_ADDR)
-#define MAX_HEAP_SIZE (PHYS_RAM_SIZE - USED_RAM_SIZE)
-#elif CONFIG_NIOS2
-#include <layout.h>
-#define RAM_ADDR DT_REG_ADDR(DT_CHOSEN(zephyr_sram))
-#define RAM_SIZE DT_REG_SIZE(DT_CHOSEN(zephyr_sram))
-#define USED_RAM_SIZE  (USED_RAM_END_ADDR - RAM_ADDR)
-#define MAX_HEAP_SIZE (RAM_SIZE - USED_RAM_SIZE)
-#elif CONFIG_RISCV
-#include <soc.h>
-#define USED_RAM_SIZE  (USED_RAM_END_ADDR - RISCV_RAM_BASE)
-#define MAX_HEAP_SIZE  (RISCV_RAM_SIZE - USED_RAM_SIZE)
-#elif CONFIG_ARM
-#include <soc.h>
-#if defined(CONFIG_USERSPACE)
-/* MPU shall program the heap area as user-accessible; therefore, heap base
- * (and size) shall take into account the ARM MPU minimum region granularity.
+#ifdef CONFIG_USERSPACE
+/* Need to be able to program a memory protection region from HEAP_BASE
+ * to the end of RAM so that user threads can get at it.
+ * Implies that the base address needs to be suitably aligned.
  */
-#define HEAP_BASE ((USED_RAM_END_ADDR + \
-		CONFIG_ARM_MPU_REGION_MIN_ALIGN_AND_SIZE) & \
-	(~(CONFIG_ARM_MPU_REGION_MIN_ALIGN_AND_SIZE - 1)))
-#else
-#define HEAP_BASE USED_RAM_END_ADDR
-#endif /* CONFIG_USERSPACE*/
-#define USED_RAM_SIZE  (HEAP_BASE - CONFIG_SRAM_BASE_ADDRESS)
-#define MAX_HEAP_SIZE ((KB(CONFIG_SRAM_SIZE)) - USED_RAM_SIZE)
-#elif CONFIG_XTENSA
-extern void *_heap_sentry;
-#define MAX_HEAP_SIZE  (POINTER_TO_UINT(&_heap_sentry) - USED_RAM_END_ADDR)
-#else
-#define USED_RAM_SIZE  (USED_RAM_END_ADDR - CONFIG_SRAM_BASE_ADDRESS)
-#define MAX_HEAP_SIZE ((KB(CONFIG_SRAM_SIZE)) - USED_RAM_SIZE)
+#ifdef CONFIG_MMU
+/* Linker script may already have done this, but just to be safe */
+#define HEAP_BASE	ROUND_UP(USED_RAM_END_ADDR, CONFIG_MMU_PAGE_SIZE)
+#else /* We have an MPU */
+#ifdef CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT
+/* This approach just doesn't work if we have a power of two MPU, need
+ * a dedicated arena that is sized/aligned properly
+ */
+#error "You need to set CONFIG_NEWLIB_LIBC_ALIGNED_HEAP_SIZE"
 #endif
+/* TODO: Need a generic Kconfig for the MPU region granularity */
+#if defined(CONFIG_ARM)
+#define HEAP_BASE	ROUND_UP(USED_RAM_END_ADDR, \
+				 CONFIG_ARM_MPU_REGION_MIN_ALIGN_AND_SIZE)
+#elif defined(CONFIG_ARC)
+#define HEAP_BASE	Z_ARC_MPU_SIZE_ALIGN(USED_RAM_END_ADDR)
+#else
+#error "Unsupported platform"
+#endif /* CONFIG_<arch> */
+#endif /* !CONFIG_MMU */
+#else /* !CONFIG_USERSPACE */
+/* No user mode, heap can just start wherever _end is */
+#define HEAP_BASE	USED_RAM_END_ADDR
+#endif /* !CONFIG_USERSPACE */
 
-#ifndef HEAP_BASE
-#define HEAP_BASE USED_RAM_END_ADDR
+#ifdef CONFIG_XTENSA
+extern void *_heap_sentry;
+#define MAX_HEAP_SIZE  (POINTER_TO_UINT(&_heap_sentry) - HEAP_BASE)
+#else
+#define MAX_HEAP_SIZE	(KB(CONFIG_SRAM_SIZE) - \
+			 (HEAP_BASE - CONFIG_SRAM_BASE_ADDRESS))
 #endif
 
 #ifdef CONFIG_USERSPACE
