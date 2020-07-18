@@ -13,13 +13,8 @@
 	_kobject_text_area_end = .;
 	_kobject_text_area_used = _kobject_text_area_end - _kobject_text_area_start;
 #ifndef LINKER_PASS2
-#ifdef CONFIG_DYNAMIC_OBJECTS
 	PROVIDE(z_object_gperf_find = .);
 	PROVIDE(z_object_gperf_wordlist_foreach = .);
-#else
-	PROVIDE(z_object_find = .);
-	PROVIDE(z_object_wordlist_foreach = .);
-#endif
 #endif
 
 	/* In a valid build the MAX function will always evaluate to the

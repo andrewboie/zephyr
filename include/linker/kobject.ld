@@ -21,8 +21,7 @@
 	 * *and* the specific memory addresses being hashed. It is not something
 	 * that can be predicted without actually building and compling it.
          */
-	SECTION_DATA_PROLOGUE(kobject_data,,)
-	{
+        z_object_data_begin = .;
 	*(".kobject_data.data*")
 
 #ifndef LINKER_PASS2
@@ -31,21 +30,12 @@
 	. += CONFIG_MAX_THREAD_BYTES;
 #endif
 #endif
-
+        z_object_rodata_begin = .;
         /* This is also unpredictable in size, and has the same constraints.
          * On XIP systems this will get put at the very end of ROM.
          */
 #ifndef CONFIG_XIP
 	*(".kobject_data.rodata*")
 #endif
-        } GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-
-#ifdef CONFIG_GEN_PRIV_STACKS
-	SECTION_DATA_PROLOGUE(priv_stacks_noinit,,)
-	{
-	z_priv_stacks_ram_start = .;
-	*(".priv_stacks.noinit")
-	z_priv_stacks_ram_end = .;
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-#endif /* CONFIG_GEN_PRIV_STACKS */
+        z_object_data_end = .;
 #endif /* CONFIG_USERSPACE */

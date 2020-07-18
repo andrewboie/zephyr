@@ -707,14 +707,6 @@ void z_object_gperf_wordlist_foreach(_wordlist_cb_func_t func, void *context)
         }
     }
 }
-
-#ifndef CONFIG_DYNAMIC_OBJECTS
-struct z_object *z_object_find(void *obj)
-	ALIAS_OF(z_object_gperf_find);
-
-void z_object_wordlist_foreach(_wordlist_cb_func_t func, void *context)
-	ALIAS_OF(z_object_gperf_wordlist_foreach);
-#endif
 """
 
 

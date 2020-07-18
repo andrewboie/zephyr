@@ -22,6 +22,12 @@ import argparse
 import os
 import re
 from distutils.version import LooseVersion
+import elftools
+from elftools.elf.elffile import ELFFile
+from elftools.elf.sections import SymbolTableSection
+
+if LooseVersion(elftools.__version__) < LooseVersion('0.24'):
+    sys.exit("pyelftools is out of date, need version 0.24 or later")
 
 # --- debug stuff ---
 
@@ -115,7 +121,7 @@ def process_line(line, fp):
 
     # Hashing the address of the string
     line = re.sub(r"hash [(]str, len[)]",
-                  r"hash((const char *)&str, len)", line)
+                  r"my_hash(str, len)", line)
 
     # Just compare pointers directly instead of using memcmp
     if re.search("if [(][*]str", line):
@@ -128,6 +134,13 @@ def process_line(line, fp):
 
     fp.write(line)
 
+def get_symbols(elf):
+    for section in elf.iter_sections():
+        if isinstance(section, SymbolTableSection):
+            return {sym.name: sym.entry.st_value
+                    for sym in section.iter_symbols()}
+
+    raise LookupError("Could not find symbol table")
 
 def parse_args():
     global args
@@ -142,18 +155,69 @@ def parse_args():
                         help="Output C file with processing done")
     parser.add_argument("-p", "--pattern", required=True,
             help="Search pattern for objects")
+    parser.add_argument("-k", "--kernel", required=True,
+                        help="Input zephyr ELF binary")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Print extra debugging information")
     args = parser.parse_args()
     if "VERBOSE" in os.environ:
         args.verbose = 1
 
+gperf_extra_header = """
+#include <init.h>
+extern char z_object_data_end[];
+#define DELTA (((const char *)(&z_object_data_end)) - ((const char *)OLD_DATA))
+
+static unsigned int hash ( const char *str,  size_t len);
+
+static unsigned int my_hash( const char *str,  size_t len)
+{
+    const char *adjusted = str - DELTA;
+
+    printk("object %p adjusted %p\\n", str, adjusted);
+
+    return hash((const char *)&adjusted, len);
+
+}
+"""
+
+gperf_extra_footer = """
+
+static void fixup_func(struct z_object *ko, void *ctx_ptr)
+{
+    void *old_addr = ko->name;
+    ko->name = (uint8_t *)(ko->name) + DELTA;
+
+    printk("%p -> %p\\n", old_addr, ko->name);
+}
+
+static int gperf_fixup(struct device *unused)
+{
+    z_object_gperf_wordlist_foreach(fixup_func, NULL);
+    return 0;
+}
+
+SYS_INIT(gperf_fixup, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+"""
+
 def main():
     parse_args()
 
+    elf = ELFFile(open(args.kernel, "rb"))
+    syms = get_symbols(elf)
+
+    # Address of __data_ram_start in the prebuilt image, which didn't have
+    # its memory addresses disturbed by the gperf data itself.
+    # We use this and the final address of __data_ram_start to compute an
+    # offset.
+    old_data_begin = syms["z_object_data_end"]
+
     with open(args.input, "r") as in_fp, open(args.output, "w") as out_fp:
+        out_fp.write("#define OLD_DATA 0x%x\n" % old_data_begin)
+        out_fp.write(gperf_extra_header)
         for line in in_fp.readlines():
             process_line(line, out_fp)
+        out_fp.write(gperf_extra_footer)
 
 
 if __name__ == "__main__":

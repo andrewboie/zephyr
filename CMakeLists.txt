@@ -819,7 +819,7 @@ if(CONFIG_USERSPACE)
     ${gen_kobject_list_include_args}
     $<$<BOOL:${CMAKE_VERBOSE_MAKEFILE}>:--verbose>
     DEPENDS
-    ${ZEPHYR_PREBUILT_EXECUTABLE}
+    ${ZEPHYR_PREBUILT_EXECUTABLE} ${GEN_KOBJ_LIST}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
   add_custom_target(obj_list DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${OBJ_LIST})
@@ -847,11 +847,12 @@ if(CONFIG_USERSPACE)
     COMMAND
     ${PYTHON_EXECUTABLE}
     ${PROCESS_GPERF}
+    --kernel $<TARGET_FILE:${ZEPHYR_PREBUILT_EXECUTABLE}>
     -i ${OUTPUT_SRC_PRE}
     -o ${OUTPUT_SRC}
     -p "struct z_object"
     $<$<BOOL:${CMAKE_VERBOSE_MAKEFILE}>:--verbose>
-    DEPENDS output_src_pre ${OUTPUT_SRC_PRE}
+    DEPENDS output_src_pre ${OUTPUT_SRC_PRE} ${PROCESS_GPERF}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
   add_custom_target(output_src DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_SRC})

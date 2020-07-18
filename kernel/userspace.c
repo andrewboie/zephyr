@@ -104,7 +104,7 @@ uint8_t *z_priv_stack_find(k_thread_stack_t *stack)
 {
 	struct z_object *obj = z_object_find(stack);
 
-	__ASSERT(obj != NULL, "stack object not found");
+	__ASSERT(obj != NULL, "stack object %p not found", stack);
 	__ASSERT(obj->type == K_OBJ_THREAD_STACK_ELEMENT,
 		 "bad stack object");
 
@@ -389,6 +389,16 @@ void z_object_wordlist_foreach(_wordlist_cb_func_t func, void *context)
 		func(&obj->kobj, context);
 	}
 	k_spin_unlock(&lists_lock, key);
+}
+#else
+struct z_object *z_object_find(void *obj)
+{
+	return z_object_gperf_find(obj);
+}
+
+void z_object_wordlist_foreach(_wordlist_cb_func_t func, void *context)
+{
+	z_object_gperf_wordlist_foreach(func, context);
 }
 #endif /* CONFIG_DYNAMIC_OBJECTS */
 
