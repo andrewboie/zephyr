@@ -38,6 +38,13 @@
 /** Region will be accessible to user mode (normally supervisor-only) */
 #define K_MEM_PERM_USER		BIT(5)
 
+/*
+ * Other control flags
+ */
+
+/** Require a TLB flush for all the pages involved in this mapping */
+#define K_MEM_MAP_FLUSH		BIT(6)
+
 #ifndef _ASMLANGUAGE
 #include <stdint.h>
 #include <stddef.h>

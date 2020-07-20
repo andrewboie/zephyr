@@ -240,6 +240,8 @@ static inline bool arch_is_in_isr(void);
  * to this API are assumed to be serialized, and indeed all usage will
  * originate from kernel/mm.c which handles virtual memory management.
  *
+ * The TLB will only be flushed if K_MEM_MAP_FLUSH is provided in flags.
+ *
  * This API is part of infrastructure still under development and may
  * change.
  *
