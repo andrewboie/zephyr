@@ -485,6 +485,8 @@ config CPU_HAS_MMU
 	  This hidden option is selected when the CPU has a Memory Management Unit
 	  (MMU).
 
+menu "MMU Options"
+
 config MMU
 	bool
 	depends on CPU_HAS_MMU
@@ -550,6 +552,8 @@ config KERNEL_VM_LIMIT
 	  room to map system RAM, plus any driver mappings. Further mappings
 	  may be made at runtime depending on configuration options (such as
 	  memory-mapping stacks, VDSO pages, etc).
+
+endmenu
 
 config MEMORY_PROTECTION
 	bool
