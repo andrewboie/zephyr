@@ -44,7 +44,7 @@
 
 #include <linker/linker-tool.h>
 
-#ifdef CONFIG_XIP
+#if defined(CONFIG_XIP) || defined(CONFIG_MMU)
 	#define ROMABLE_REGION ROM
 	#define RAMABLE_REGION RAM
 #else
