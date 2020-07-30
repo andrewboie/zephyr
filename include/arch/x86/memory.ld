@@ -16,6 +16,12 @@
  * are set up, such that read/write data/bss have their VMA addresses
  * in RAM and are copied from flash at boot. Text/rodata linked in-place in
  * flash.
+ *
+ * If CONFIG_MMU is enabled, then the ROM region in MEMORY is used to set the
+ * LMA for all sections relative to physical address. The virtual address VMAs
+ * for all sections are relative to the base virtual address for the kernel.
+ * Setting LMAs here helps let QEMU or any other ELF-aware loader know where to
+ * physically load the image.
  */
 
 #ifndef ARCH_X86_MEMORY_LD
@@ -28,7 +34,17 @@
 #define PHYS_RAM_ADDR		DT_REG_ADDR(DT_CHOSEN(zephyr_sram))
 #define PHYS_RAM_SIZE		DT_REG_SIZE(DT_CHOSEN(zephyr_sram))
 
+/* Virtual base address for the kernel; with CONFIG_MMU this is not necessarily
+ * the same as its physical location, although an identity mapping for RAM
+ * is still supported by setting CONFIG_KERNEL_VM_BASE=CONFIG_SRAM_BASE_ADDRESS.
+ */
+#ifdef CONFIG_MMU
+#define KERNEL_BASE_ADDR  (CONFIG_KERNEL_VM_BASE + CONFIG_X86_KERNEL_OFFSET)
+#else
 #define KERNEL_BASE_ADDR  (PHYS_RAM_ADDR + CONFIG_X86_KERNEL_OFFSET)
+#endif
+
+/* "kernel RAM" for linker VMA allocations starts at the offset */
 #define KERNEL_RAM_SIZE   (PHYS_RAM_SIZE - CONFIG_X86_KERNEL_OFFSET)
 
 #ifdef CONFIG_XIP
