@@ -42,7 +42,7 @@ static k_tid_t tracing_thread_tid;
 static struct k_thread tracing_thread;
 static struct k_timer tracing_thread_timer;
 static K_SEM_DEFINE(tracing_thread_sem, 0, 1);
-static K_THREAD_STACK_DEFINE(tracing_thread_stack,
+static K_KERNEL_STACK_DEFINE(tracing_thread_stack,
 			CONFIG_TRACING_THREAD_STACK_SIZE);
 
 static void tracing_thread_func(void *dummy1, void *dummy2, void *dummy3)
@@ -102,7 +102,7 @@ static int tracing_init(struct device *arg)
 		     tracing_thread_timer_expiry_fn, NULL);
 
 	k_thread_create(&tracing_thread, tracing_thread_stack,
-			K_THREAD_STACK_SIZEOF(tracing_thread_stack),
+			K_KERNEL_STACK_SIZEOF(tracing_thread_stack),
 			tracing_thread_func, NULL, NULL, NULL,
 			K_LOWEST_APPLICATION_THREAD_PRIO, 0, K_NO_WAIT);
 	k_thread_name_set(&tracing_thread, TRACING_THREAD_NAME);
