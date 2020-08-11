@@ -39,6 +39,18 @@ config GDT_DYNAMIC
 	  This option stores the GDT in RAM instead of ROM, so that it may
 	  be modified at runtime at the expense of some memory.
 
+config X86_TRUNCATE_CS
+	bool "Truncate code segment size"
+	default y
+	depends on !X86_PAE
+	depends on GDT_DYNAMIC
+	depends on SRAM_REGION_PERMISSIONS
+	help
+	  Truncate the size of the code segment, such that its limit ends at the
+	  last virtual address for the text section. Prevents execution of any
+	  memory addresses after the text section, for projects that do not
+	  enable PAE page tables that provide the the XD execute disable bit.
+
 endmenu
 
 menu "Processor Capabilities"

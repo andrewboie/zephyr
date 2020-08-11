@@ -187,8 +187,15 @@ def main():
         # since the CPU never looks at it
         fp.write(create_gdt_pseudo_desc(gdt_base, num_entries * 8))
 
+        if "CONFIG_X86_TRUNCATE_CS" in syms:
+            # Code segment stops after program text. Limits are in 4K page
+            # units when FLAGS_GRAN set
+            code_limit = syms["_image_text_end"] >> 12
+        else:
+            code_limit = 0xFFFFF
+
         # Selector 0x08: code descriptor
-        fp.write(create_code_data_entry(0, 0xFFFFF, 0,
+        fp.write(create_code_data_entry(0, code_limit, 0,
                                         FLAGS_GRAN, ACCESS_EX | ACCESS_RW))
 
         # Selector 0x10: data descriptor
@@ -207,7 +214,7 @@ def main():
 
         if num_entries == 7:
             # Selector 0x28: code descriptor, dpl = 3
-            fp.write(create_code_data_entry(0, 0xFFFFF, 3,
+            fp.write(create_code_data_entry(0, code_limit, 3,
                                             FLAGS_GRAN, ACCESS_EX | ACCESS_RW))
 
             # Selector 0x30: data descriptor, dpl = 3
