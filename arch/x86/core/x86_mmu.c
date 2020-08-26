@@ -565,13 +565,12 @@ static void *page_pool_get(void *context)
  * @param ptables Top-level page tables pointer
  * @param virt Virtual address to set mapping
  * @param entry_val Value to set PTE to
- * @param get_page Function to draw memory pages from
- * @param ctx Context pointer to pass to get_page()
+ * @param alloc_ok If allocations are permitted
  * @retval 0 success
  * @retval -ENOMEM get_page() failed
  */
-static int page_map_set(pentry_t *ptables, void *virt, pentry_t entry_val,
-			page_get_func_t get_page, void *ctx)
+static int page_map_set(pentry_t *ptables, void *virt, pentry_t entry_val
+			bool alloc_ok)
 {
 	pentry_t *table = ptables;
 
@@ -593,7 +592,8 @@ static int page_map_set(pentry_t *ptables, void *virt, pentry_t entry_val,
 			/* Not present. Never done a mapping here yet, need
 			 * some RAM for linked tables
 			 */
-			void *new_table = get_page(ctx);
+			__ASSERT(alloc_ok, "allocation forbidden");
+			void *new_table = page_pool_get();
 
 			if (new_table == NULL) {
 				return -ENOMEM;
@@ -615,11 +615,41 @@ static int page_map_set(pentry_t *ptables, void *virt, pentry_t entry_val,
 	return 0;
 }
 
+/* Establish the desired mapping in all active page tables */
+static int map_memory_ptables(void *virt, uintptr_t phys,
+			      size_t size, pentry_t entry_flags, bool alloc_ok)
+{
+
+	pentry_t *ptables = &z_x86_kernel_ptables;
+
+	// foreach page table in the system....
+
+	for (size_t offset = 0; offset < size; offset += CONFIG_MMU_PAGE_SIZE) {
+		int ret;
+		pentry_t entry_val = (phys + offset) | entry_flags;
+		uint8_t *dest_virt = (uint8_t *)virt + offset;
+
+		ret = page_map_set(ptables, dest_virt, entry_val, alloc_ok);
+
+		/* Currently used for new mappings, no TLB flush. Re-visit
+		 * as capabilities increase
+		 */
+
+		if (ret != 0) {
+			/* NOTE: Currently we do not un-map a partially
+			 * completed mapping.
+			 */
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 /* map region virt..virt+size to phys with provided arch-neutral flags */
 int arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags)
 {
 	pentry_t entry_flags = MMU_P;
-	pentry_t *ptables;
 
 	LOG_DBG("%s: %p -> %p (%zu) flags 0x%x",
 		__func__, (void *)phys, virt, size, flags);
@@ -633,12 +663,6 @@ int arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags)
 		 "non-canonical virtual address mapping %p (size %zu)",
 		 virt, size);
 #endif /* CONFIG_X86_64 */
-
-	/* For now, always map in the kernel's page tables, we're just using
-	 * this for driver mappings. User mode mappings
-	 * (and interactions with KPTI) not implemented yet.
-	 */
-	ptables = (pentry_t *)&z_x86_kernel_ptables;
 
 	/* Translate flags argument into HW-recognized entry flags.
 	 *
@@ -662,36 +686,13 @@ int arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags)
 		entry_flags |= MMU_RW;
 	}
 	if ((flags & K_MEM_PERM_USER) != 0U) {
-		/* TODO: user mode support
-		 * entry_flags |= MMU_US;
-		 */
-		return -ENOTSUP;
+		entry_flags |= MMU_US;
 	}
 	if ((flags & K_MEM_PERM_EXEC) == 0U) {
 		entry_flags |= MMU_XD;
 	}
 
-	for (size_t offset = 0; offset < size; offset += CONFIG_MMU_PAGE_SIZE) {
-		int ret;
-		pentry_t entry_val = (phys + offset) | entry_flags;
-		uint8_t *dest_virt = (uint8_t *)virt + offset;
-
-		ret = page_map_set(ptables, dest_virt, entry_val,
-				   page_pool_get, NULL);
-
-		/* Currently used for new mappings, no TLB flush. Re-visit
-		 * as capabilities increase
-		 */
-
-		if (ret != 0) {
-			/* NOTE: Currently we do not un-map a partially
-			 * completed mapping.
-			 */
-			return ret;
-		}
-	}
-
-	return 0;
+	return map_memory_ptables(virt, phys, size, entry_flags, true);
 }
 
 static void identity_map_remove(void)
@@ -742,14 +743,8 @@ static void stack_guard_set(void *guard_page)
 
 	assert_virt_addr_aligned(guard_page);
 
-	/* Always modify the kernel's page tables since this is for
-	 * supervisor threads or handling syscalls
-	 */
-	ret = page_map_set(&z_x86_kernel_ptables, guard_page, pte,
-			   page_pool_get, NULL);
-	/* Literally should never happen */
-	__ASSERT(ret == 0, "stack guard mapping failed for %p", guard_page);
-	(void)ret;
+
+	(void)map_memory_ptables(guard_page, CONFIG_MMU_PAGE_SIZE, pte, false);
 }
 
 void z_x86_set_stack_guard(k_thread_stack_t *stack)
@@ -769,11 +764,6 @@ void z_x86_set_stack_guard(k_thread_stack_t *stack)
 #endif /* CONFIG_X86_STACK_PROTECTION */
 
 #ifdef CONFIG_USERSPACE
-/*
- * All of the code below will eventually be removed/replaced with a virtual
- * address space aware userspace that doesn't do a physical memory map with
- * memory domains.
- */
 static bool page_validate(pentry_t *ptables, uint8_t *addr, bool write)
 {
 	pentry_t *table = (pentry_t *)ptables;
@@ -833,77 +823,9 @@ int arch_buffer_validate(void *addr, size_t size, int write)
 	return ret;
 }
 
-/* Fetch pages for per-thread page tables from reserved space within the
- * thread stack object
- *
- * For the moment, re-use pool_lock for synchronization
+/* Get the kernel's PTE value for a particular virtual address, of particular
+ * interest being mapping flags
  */
-static void *thread_page_pool_get(void *context)
-{
-	struct k_thread *thread = context;
-	uint8_t *stack_object = (uint8_t *)thread->stack_obj;
-	void *ret;
-	k_spinlock_key_t key;
-
-	key = k_spin_lock(&pool_lock);
-	ret = thread->arch.mmu_pos;
-
-	if (thread->arch.mmu_pos >= stack_object + Z_X86_THREAD_PT_AREA) {
-		ret = NULL;
-	} else {
-		thread->arch.mmu_pos += CONFIG_MMU_PAGE_SIZE;
-		memset(ret, 0, CONFIG_MMU_PAGE_SIZE);
-	}
-	k_spin_unlock(&pool_lock, key);
-
-	return ret;
-}
-
-#define RAM_BASE	((uintptr_t)CONFIG_KERNEL_VM_BASE)
-#define RAM_END		(RAM_BASE + (CONFIG_SRAM_SIZE * 1024UL))
-
-/* Establish a mapping in the thread's page tables */
-static void thread_map(struct k_thread *thread, void *ptr, size_t size,
-		       pentry_t flags, bool flush)
-{
-	pentry_t *ptables = z_x86_thread_page_tables_get(thread);
-
-	assert_region_page_aligned(ptr, size);
-
-	/* Only mapping system RAM addresses is supported in thread page tables,
-	 * as the thread does not have its own copies of tables outside of it
-	 */
-	__ASSERT((uintptr_t)ptr >= RAM_BASE,
-		 "%p below system RAM", ptr);
-	__ASSERT((uintptr_t)ptr < RAM_END,
-		 "%p above system ram", ptr);
-
-	for (size_t offset = 0; offset < size; offset += CONFIG_MMU_PAGE_SIZE) {
-		pentry_t pte;
-		uint8_t *pos;
-		int ret;
-
-		pos = (uint8_t *)ptr + offset;
-
-		if ((flags & MMU_P) == 0U) {
-			/* L1TF */
-			pte = 0U;
-		} else {
-			pte = z_mem_phys_addr(pos) | flags;
-		}
-
-		ret = page_map_set(ptables, pos, pte, thread_page_pool_get,
-				   thread);
-		__ASSERT(ret == 0, "mapping failed for %p", pos);
-		(void)ret;
-
-		if (flush) {
-			tlb_flush_page(pos);
-		}
-	}
-}
-
-/* Get the kernel's PTE value for a particular virtual address */
 static pentry_t kernel_page_map_get(void *virt)
 {
 	pentry_t *table = &z_x86_kernel_ptables;
@@ -926,13 +848,11 @@ static pentry_t kernel_page_map_get(void *virt)
 	return 0;
 }
 
-/* In thread page tables, set mapping for a particular address to whatever
- * mapping is set up for that address in the kernel's page tables.
+/* For a particular linear data page, restore access policy bits to default
  */
-static void page_reset(struct k_thread *thread, void *virt)
+static void page_reset(pentry_t *ptables, void *virt)
 {
 	pentry_t kern_pte = kernel_page_map_get(virt);
-	pentry_t *thread_ptables = z_x86_thread_page_tables_get(thread);
 	int ret;
 
 #ifdef CONFIG_X86_KPTI
@@ -945,109 +865,8 @@ static void page_reset(struct k_thread *thread, void *virt)
 	}
 #endif /* CONFIG_X86_KPTI */
 
-	ret = page_map_set(thread_ptables, virt,
-			   kern_pte, thread_page_pool_get, thread);
-	__ASSERT(ret == 0, "mapping failed for %p", virt);
-	(void)ret;
+	(void)page_map_set(thread_ptables, virt, kern_pte, false);
 }
-
-#ifdef CONFIG_X86_KPTI
-/* KPTI version. The thread-level page tables are ONLY used by user mode
- * and very briefly when changing privileges.
- *
- * We leave any memory addresses outside of system RAM unmapped.
- * Any addresses within system RAM are also unmapped unless they have the US
- * bit set, or are the trampoline page.
- */
-static void setup_thread_tables(struct k_thread *thread,
-				pentry_t *thread_ptables)
-{
-	ARG_UNUSED(thread_ptables);
-
-	for (uint8_t *pos = (uint8_t *)RAM_BASE; pos < (uint8_t *)RAM_END;
-	     pos += CONFIG_MMU_PAGE_SIZE) {
-		page_reset(thread, pos);
-	}
-}
-#else
-/* get the Nth level paging structure for a particular virtual address */
-static pentry_t *page_table_get(pentry_t *toplevel, void *virt, int level)
-{
-	pentry_t *table = toplevel;
-
-	__ASSERT(level < NUM_LEVELS, "bad level argument %d", level);
-
-	for (int i = 0; i < level; i++) {
-		pentry_t entry = get_entry(table, virt, level);
-
-		if ((entry & MMU_P) == 0U) {
-			return NULL;
-		}
-		__ASSERT((entry & MMU_PS) == 0, "bigpage found");
-		table = next_table(entry, i);
-	}
-
-	return table;
-}
-
-/* Get a pointer to the N-th level entry for a particular virtual address */
-static pentry_t *page_entry_ptr_get(pentry_t *toplevel, void *virt, int level)
-{
-	pentry_t *table = page_table_get(toplevel, virt, level);
-
-	__ASSERT(table != NULL, "no table mapping for %p at level %d",
-		 virt, level);
-	return get_entry_ptr(table, virt, level);
-}
-
- /* Non-KPTI version. The thread-level page tables are used even during
-  * interrupts, exceptions, and syscalls, so we need all mappings.
-  * Copies will be made of all tables that provide mappings for system RAM,
-  * otherwise the kernel table will just be linked instead.
-  */
-static void setup_thread_tables(struct k_thread *thread,
-				pentry_t *thread_ptables)
-{
-	/* Copy top-level structure verbatim */
-	(void)memcpy(thread_ptables, &z_x86_kernel_ptables, table_size(0));
-
-	/* Proceed through linked structure levels, and for all system RAM
-	 * virtual addresses, create copies of all relevant tables.
-	 */
-	for (int level = 1; level < NUM_LEVELS; level++) {
-		uint8_t *start, *end;
-		size_t increment;
-
-		increment = get_entry_scope(level);
-		start = (uint8_t *)ROUND_DOWN(RAM_BASE, increment);
-		end = (uint8_t *)ROUND_UP(RAM_END, increment);
-
-		for (uint8_t *virt = start; virt < end; virt += increment) {
-			pentry_t *link, *master_table, *user_table;
-
-			/* We're creating a new thread page table, so get the
-			 * pointer to the entry in the previous table to have
-			 * it point to the new location
-			 */
-			link = page_entry_ptr_get(thread_ptables, virt,
-						  level - 1);
-
-			/* Master table contents, which we make a copy of */
-			master_table = page_table_get(&z_x86_kernel_ptables,
-						      virt, level);
-
-			/* Pulled out of reserved memory in the stack object */
-			user_table = thread_page_pool_get(thread);
-			__ASSERT(user_table != NULL, "out of memory")
-
-			(void)memcpy(user_table, master_table,
-				     table_size(level));
-
-			*link = z_mem_phys_addr(user_table) | INT_FLAGS;
-		}
-	}
-}
-#endif /* CONFIG_X86_KPTI */
 
 /* Called on creation of a user thread or when a supervisor thread drops to
  * user mode.
@@ -1064,22 +883,11 @@ void z_x86_thread_pt_init(struct k_thread *thread)
 {
 	pentry_t *ptables;
 
-	/* thread_page_pool_get() memory starts at the beginning of the
-	 * stack object
-	 */
-	assert_virt_addr_aligned(thread->stack_obj);
-	thread->arch.mmu_pos = (uint8_t *)thread->stack_obj;
+	__assert(thread->mem_domain_info.mem_domain != NULL);
 
-	/* Get memory for the top-level structure */
-#ifndef CONFIG_X86_PAE
-	ptables = thread_page_pool_get(thread);
-	__ASSERT(ptables != NULL, "out of memory");
-#else
-	struct z_x86_thread_stack_header *header =
-		(struct z_x86_thread_stack_header *)thread->stack_obj;
 
-	ptables = (pentry_t *)&header->kernel_data.ptables;
-#endif
+
+
 	thread->arch.ptables = z_mem_phys_addr(ptables);
 
 	setup_thread_tables(thread, ptables);
@@ -1091,12 +899,95 @@ void z_x86_thread_pt_init(struct k_thread *thread)
 		   MMU_P | MMU_RW | MMU_US | MMU_XD, false);
 }
 
-static inline void apply_mem_partition(struct k_thread *thread,
-				       struct k_mem_partition *partition)
+/* Copy the page tables in src to the destination. The destination is an
+ * uninitialized block of memory equal to the top-level paging structure
+ * size.
+ *
+ * Return 0 on success, -ENOMEM if we're out of memory. Incomplete allocations
+ * are not reclaimed.
+ *
+ * This is recursive but recursion depth is capped at the number of HW
+ * paging levels.
+ *
+ * Destination page tables must never be active on any CPU!
+ */
+static int copy_page_table(pentry_t *dst, const pentry_t *src, int level)
 {
-	thread_map(thread, (void *)partition->start, partition->size,
-		   partition->attr | MMU_P, false);
+	(void)memcpy(dst, src, table_size(level));
+
+	for (int i = 0; i < paging_levels[level].entries) {
+		pentry_t *entry = &dst[i];
+
+		if ((*entry & MMU_P) == 0) {
+			continue;
+		}
+
+		if (level == (NUM_LEVELS -1) || (*entry & MMU_PS) != 0) {
+			/* Base case; leaf entry that maps an address and
+			 * not a child table
+			 */
+
+			if (IS_ENABLED(CONFIG_X86_KPTI) &&
+			    ((*entry & MMU_US) == 0U)) {
+				/* We'll map the trampoline page in these page
+				 * tables once we're all done
+				 */
+				*entry = (*entry) & (~MMU_P);
+			}
+		} else {
+			/* Recursive case; allocate a child table, link it,
+			 * and call ourselves on it
+			 */
+			pentry_t *dst_child = page_pool_get();
+			const pentry_t *src_child = next_table(*entry, level);
+
+			if (!dst_child) {
+				return -ENOMEM;
+			}
+
+			*entry = z_mem_phys_addr(child) | INT_FLAGS;
+
+			ret = copy_page_table(dst_child, src_child, level + 1);
+			if (ret != 0) {
+				return ret;
+			}
+		}
+	}
+
+	return 0;
 }
+
+int arch_mem_domain_init(struct k_mem_domain *domain)
+{
+	int ret;
+
+#ifndef CONFIG_X86_PAE
+	domain->arch.page_tables = page_pool_get();
+
+	if (domain->arch.page_tables == NULL) {
+		return -ENOMEM;
+	}
+#endif
+	ret = copy_page_table(domain->arch.page_tables,
+			      &z_x86_kernel_ptables, 0);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+#ifdef CONFIG_X86_KPTI
+	/* Need to re-map the trampoline page since it didn't have the User
+	 * bit set
+	 */
+	pentry_t entry = kernel_page_map_get(&z_shared_kernel_page_start);
+
+	(void)page_map_set(domain->arch_ptables,
+			   &z_shared_kernel_page_start, entry, false);
+#endif
+
+	return 0;
+}
+
 
 static void reset_mem_partition(struct k_thread *thread,
 				struct k_mem_partition *partition)

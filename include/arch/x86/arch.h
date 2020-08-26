@@ -228,6 +228,37 @@ extern "C" {
 
 #ifndef _ASMLANGUAGE
 
+#ifdef CONFIG_USERSPACE
+/* We need a set of page tables for each memory domain in the system.
+ *
+ * The memory for these page tables is allocated when the memory domain
+ * is initialized. It will be a full copy of the kernel's page tables.
+ *
+ * Memory mappings in Zephyr are global from the kernel's perspective, so
+ * any further calls to k_mem_map() will also iterate over all active memory
+ * domain page tables in addition to the kernel's page table.
+ *
+ * If KPTI is enabled, supervisor mode always uses the kernel's page tables;
+ * these page tables will have any pages without the User bit set marked
+ * non-present.
+ *
+ * Page table allocations take place at the following times:
+ *  - When a memory domain is initialized (always)
+ *  - When arch_mem_map() is called (if there were no page tables for the
+ *                                   requested virtual region)
+ */
+#ifdef CONFIG_X86_PAE
+__aligned(32)
+#endif
+struct arch_mem_domain {
+#ifdef CONFIG_X86_PAE
+	pentry_t page_tables[4]; /* top-level 4-entry PDPT */
+#else
+	pentry_t *page_tables;
+#endif
+};
+#endif
+
 extern void arch_irq_enable(unsigned int irq);
 extern void arch_irq_disable(unsigned int irq);
 

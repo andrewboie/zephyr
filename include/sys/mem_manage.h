@@ -94,6 +94,11 @@ extern "C" {
  * bad flags are passed in, or if additional memory is needed to update
  * page tables that is not available, this will generate a kernel panic.
  *
+ * It is permissible to pass K_MEM_PERM_USER here, but beware: all user
+ * threads in the system will have access. In most cases it is far better to
+ * perform the mapping without this set, and instead add the mapped region
+ * to the memory domain(s) of the threads that actually need it.
+ *
  * This API is only available if CONFIG_MMU is enabled.
  *
  * This API is part of infrastructure still under development and may
