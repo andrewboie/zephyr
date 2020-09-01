@@ -102,11 +102,11 @@ x86_ap_start:
 	 * same flat environment that the BSP gets from the loader.
 	 */
 
-	lgdt gdt48
-	lidt idt48
+	lgdt Z_MEM_PHYS_ADDR(gdt48)
+	lidt Z_MEM_PHYS_ADDR(idt48)
 	movw $1, %ax
 	lmsw %ax
-	jmpl $X86_KERNEL_CS_32, $1f
+	jmpl $X86_KERNEL_CS_32, $Z_MEM_PHYS_ADDR(1f)
 .code32
 1:	movw $X86_KERNEL_DS_32, %ax
 	movw %ax, %ds
@@ -123,11 +123,11 @@ x86_ap_start:
 	shrl $24, %eax
 	andl $0x0F, %eax		/* local APIC ID -> EAX */
 
-	movl $x86_cpuboot, %ebp
+	movl $Z_MEM_PHYS_ADDR(x86_cpuboot), %ebp
 	xorl %ebx, %ebx
 1:	cmpl $CONFIG_MP_NUM_CPUS, %ebx
 	jz unknown_loapic_id
-	cmpb %al, x86_cpu_loapics(%ebx)
+	cmpb %al, Z_MEM_PHYS_ADDR(x86_cpu_loapics)(%ebx)
 	je go64				/* proceed to 64-bit mode */
 	incl %ebx
 	addl $__X86_CPUBOOT_SIZEOF, %ebp
@@ -138,7 +138,7 @@ unknown_loapic_id:
 
 go64:	/* Install page tables and transition to long mode */
 	install_pagetables_32
-	jmpl $X86_KERNEL_CS, $enter_code64
+	jmpl $X86_KERNEL_CS, $Z_MEM_PHYS_ADDR(enter_code64)
 #endif /* CONFIG_MP_NUM_CPUS > 1 */
 
 .code32
@@ -150,8 +150,8 @@ __start:
 	 * first, let common code do things like detect multiboot info.
 	 */
 
-	lgdt gdt48
-	lidt idt48
+	lgdt Z_MEM_PHYS_ADDR(gdt48)
+	lidt Z_MEM_PHYS_ADDR(idt48)
 
 #include "../common.S"
 
@@ -159,11 +159,12 @@ __start:
 	 * N.B.: if multiboot info struct is present, "common.S"
 	 * has left a pointer to it in EBX. do not clobber (yet).
 	 */
-	movl $x86_cpuboot, %ebp		/* BSP is always logical CPU id 0 */
+	/* BSP is always logical CPU id 0 */
+	movl $Z_MEM_PHYS_ADDR(x86_cpuboot), %ebp
 	movl %ebx, __x86_cpuboot_t_arg_OFFSET(%ebp)	/* multiboot info */
 
 	install_pagetables_32
-	jmpl $X86_KERNEL_CS, $enter_code64_bss
+	jmpl $X86_KERNEL_CS, $Z_MEM_PHYS_ADDR(enter_code64_bss)
 
 .code64
 enter_code64_bss:
@@ -177,6 +178,22 @@ enter_code64_bss:
 	rep stosq
 
 enter_code64:
+
+	/* Page tables are installed at this point, transition instruction
+	 * pointer to virtual memory
+	 */
+#if CONFIG_KERNEL_VM_BASE != CONFIG_SRAM_BASE_ADDRESS
+	/* Jump to a virtual address, which works because the identity and
+	 * virtual mappings both are to the same physical address.
+	 */
+	lea vm_enter, %rax
+	jmp *%rax
+vm_enter:
+	/* We are now executing in virtual memory. We'll un-map the identity
+	 * mappings later once we are in the C domain
+	 */
+#endif /* CONFIG_KERNEL_VM_BASE != CONFIG_SRAM_BASE_ADDRESS */
+
 	/* Long mode entry point.  Arrive here from main CPU startup, AP
 	 * startup, or from EFI entry in __start64.
 	 *
@@ -238,8 +255,8 @@ __start64:
 	movq $X86_TIME_STAMP_COUNTER_MSR, %rcx
 	wrmsr
 
-	lidt idt80
-	lgdt gdt80
+	lidt Z_MEM_PHYS_ADDR(idt80)
+	lgdt Z_MEM_PHYS_ADDR(gdt80)
 
 	install_pagetables_64
 
@@ -251,8 +268,8 @@ __start64:
 	outb %al, $0xA1
 
 	/* Far call into the Zephyr code segment */
-	movq $x86_cpuboot, %rbp
-	mov jmpdesc, %rax
+	movq $Z_MEM_PHYS_ADDR(x86_cpuboot), %rbp
+	mov Z_MEM_PHYS_ADDR(jmpdesc), %rax
 	jmp *%rax
 jmpdesc:
 	.quad enter_code64_bss
