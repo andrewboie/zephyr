@@ -64,6 +64,15 @@
 #define LOCORE_SIZE         (0x10000 - LOCORE_BASE)
 #endif
 
+#ifdef CONFIG_X86_64
+/* Locore must be addressable by real mode and so cannot extend past 64K.
+ * Skip reserved stuff in the first page
+ */
+#define LOCORE_LOAD_BASE    0x1000
+#define LOCORE_SIZE         (0x10000 - LOCORE_LOAD_BASE)
+#define LOCORE_RAM_BASE     (CONFIG_KERNEL_VM_BASE + LOCORE_LOAD_BASE)
+#endif
+
 MEMORY
     {
 #if defined(CONFIG_XIP)
@@ -79,8 +88,11 @@ MEMORY
     RAM (wx)        : ORIGIN = KERNEL_BASE_ADDR, LENGTH = KERNEL_RAM_SIZE
 
 #ifdef CONFIG_X86_64
-    /* Special low-memory area for bootstrapping other CPUs from real mode */
-    LOCORE (wx)     : ORIGIN = LOCORE_BASE, LENGTH = LOCORE_SIZE
+    /* Special low-memory area between 32K and 64K for bootstrapping
+     * other CPUs from real mode
+     */
+    LOCORE_RAM (rx)     : ORIGIN = LOCORE_RAM_BASE, LENGTH = LOCORE_SIZE
+    LOCORE_ROM (wx)     : ORIGIN = LOCORE_LOAD_BASE, LENGTH = LOCORE_SIZE
 #else
     /*
      * On 32-bit x86, fake memory area for build-time IDT generation data.

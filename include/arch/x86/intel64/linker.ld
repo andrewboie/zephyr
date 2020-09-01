@@ -72,7 +72,7 @@ SECTIONS
 
 	MMU_PAGE_ALIGN
 	_lodata_end = .;
-	} > LOCORE
+	} > LOCORE_RAM AT> LOCORE_ROM
 
 	_locore_size = _lorodata_start - _locore_start;
 	_lorodata_size = _lodata_start - _lorodata_start;
