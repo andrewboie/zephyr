@@ -5,6 +5,7 @@
 
 #include <linker/linker-defs.h>
 #include <linker/linker-tool.h>
+#include <sys/mem_manage.h>
 
 #define ROMABLE_REGION ROM
 #define RAMABLE_REGION RAM
@@ -19,7 +20,8 @@
 	#define MMU_PAGE_ALIGN
 #endif
 
-ENTRY(CONFIG_KERNEL_ENTRY)
+epoint = Z_MEM_PHYS_ADDR(CONFIG_KERNEL_ENTRY);
+ENTRY(epoint)
 
 SECTIONS
 {
@@ -32,8 +34,9 @@ SECTIONS
 	SECTION_PROLOGUE(.locore,,)
 	{
 	_locore_start = .;
-	*(.locore)
-	*(.locore.*)
+	/* Needs KEEP() as ENTRY() is given a physical address */
+	KEEP(*(.locore))
+	KEEP(*(.locore.*))
 	MMU_PAGE_ALIGN
 	_locore_end = .;
 
