@@ -154,11 +154,11 @@ SECTIONS
 	*(.bss)
 	*(.bss.*)
 	*(COMMON)
-	. = ALIGN(4);	/* so __bss_num_dwords is exact */
+	. = ALIGN(8);	/* so __bss_num_qwords is exact */
 	__bss_end = .;
 	} GROUP_NOLOAD_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
-	__bss_num_dwords = (__bss_end - __bss_start) >> 2;
+	__bss_num_qwords = (__bss_end - __bss_start) >> 3;
 
 #include <linker/common-noinit.ld>
 

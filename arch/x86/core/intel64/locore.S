@@ -127,6 +127,9 @@ x86_ap_start:
 unknown_loapic_id:
 	jmp unknown_loapic_id
 
+go64:	/* Install page tables and transition to long mode */
+	install_pagetables_32
+	jmpl $X86_KERNEL_CS, $enter_code64
 #endif /* CONFIG_MP_NUM_CPUS > 1 */
 
 .code32
@@ -146,33 +149,31 @@ __start:
 	/*
 	 * N.B.: if multiboot info struct is present, "common.S"
 	 * has left a pointer to it in EBX. do not clobber (yet).
-	 *
-	 * next, clear the BSS. note we're still in 32-bit mode,
-	 * so the BSS must fit entirely in the first 4GB of RAM.
 	 */
-	cld
-	xorl %eax, %eax
-	movl $__bss_start, %edi
-	movl $__bss_num_dwords, %ecx
-	rep stosl
-
 	movl $x86_cpuboot, %ebp		/* BSP is always logical CPU id 0 */
 	movl %ebx, __x86_cpuboot_t_arg_OFFSET(%ebp)	/* multiboot info */
 
-
-go64:	/* Install page tables and transition to long mode */
 	install_pagetables_32
-	jmpl $X86_KERNEL_CS, $enter_code64
+	jmpl $X86_KERNEL_CS, $enter_code64_bss
 
-	/* Long mode entry point.  Arrive here from the code
-	 * immediately above (shared between main CPU startup and AP
-	 * startup), or from EFI entry in __start64.
+.code64
+enter_code64_bss:
+	/* Clear bss. We only get here from main CPU entry
+	 * (__start or __start64)
+	 */
+	cld
+	xorq %rax, %rax
+	movq $__bss_start, %rdi
+	movq $__bss_num_qwords, %rcx
+	rep stosq
+
+enter_code64:
+	/* Long mode entry point.  Arrive here from main CPU startup, AP
+	 * startup, or from EFI entry in __start64.
 	 *
 	 * Here we reload the segment registers,
 	 * and configure per-CPU stuff: GS, task register, stack.
 	 */
-	.code64
-enter_code64:
 	movl $X86_KERNEL_DS, %eax
 	movw %ax, %ds
 	movw %ax, %es
@@ -246,7 +247,7 @@ __start64:
 	mov jmpdesc, %rax
 	jmp *%rax
 jmpdesc:
-	.quad enter_code64
+	.quad enter_code64_bss
 	.short X86_KERNEL_CS
 
 /*
