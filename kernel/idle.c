@@ -11,6 +11,10 @@
 #include <wait_q.h>
 #include <power/power.h>
 #include <stdbool.h>
+#include <logging/log.h>
+#include <ksched.h>
+
+LOG_MODULE_DECLARE(os);
 
 #ifdef CONFIG_TICKLESS_IDLE_THRESH
 #define IDLE_THRESH CONFIG_TICKLESS_IDLE_THRESH
@@ -137,9 +141,10 @@ void z_sys_power_save_idle_exit(int32_t ticks)
 #define IDLE_YIELD_IF_COOP() do { } while (false)
 #endif
 
-void idle(void *unused1, void *unused2, void *unused3)
+void idle(void *p1, void *unused2, void *unused3)
 {
-	ARG_UNUSED(unused1);
+	struct _cpu *cpu = p1;
+
 	ARG_UNUSED(unused2);
 	ARG_UNUSED(unused3);
 
@@ -152,6 +157,24 @@ void idle(void *unused1, void *unused2, void *unused3)
 #endif
 
 	while (true) {
+		/* Lock interrupts to atomically check if to_abort is non-NULL,
+		 * and if so clear it
+		 */
+		int key = arch_irq_lock();
+		struct k_thread *to_abort = cpu->pending_abort;
+
+		if (to_abort) {
+			cpu->pending_abort = NULL;
+			arch_irq_unlock(key);
+
+			LOG_DBG("idle %p aborting thread %p",
+				_current, to_abort);
+
+			z_thread_single_abort(to_abort);
+			z_reschedule_unlocked();
+			continue;
+		}
+		arch_irq_unlock(key);
 #if SMP_FALLBACK
 		k_busy_wait(100);
 		k_yield();
