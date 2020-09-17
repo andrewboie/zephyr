@@ -104,7 +104,7 @@ kobjects = OrderedDict([
     ("device", (None, False, False)),
     ("NET_SOCKET", (None, False, False)),
     ("net_if", (None, False, False)),
-    ("sys_mutex", (None, True, False)),
+    ("z_user_mutex", (None, True, False)),
     ("k_futex", (None, True, False))
 ])
 
@@ -165,7 +165,7 @@ DW_OP_addr = 0x3
 DW_OP_fbreg = 0x91
 STACK_TYPE = "z_thread_stack_element"
 thread_counter = 0
-sys_mutex_counter = 0
+user_mutex_counter = 0
 futex_counter = 0
 stack_counter = 0
 
@@ -504,7 +504,7 @@ def device_get_api_addr(elf, addr):
 
 def find_kobjects(elf, syms):
     global thread_counter
-    global sys_mutex_counter
+    global user_mutex_counter
     global futex_counter
     global stack_counter
 
@@ -639,9 +639,9 @@ def find_kobjects(elf, syms):
             # permissions to other kernel objects
             ko.data = thread_counter
             thread_counter = thread_counter + 1
-        elif ko.type_obj.name == "sys_mutex":
-            ko.data = "&kernel_mutexes[%d]" % sys_mutex_counter
-            sys_mutex_counter += 1
+        elif ko.type_obj.name == "z_user_mutex":
+            ko.data = "&kernel_mutexes[%d]" % user_mutex_counter
+            user_mutex_counter += 1
         elif ko.type_obj.name == "k_futex":
             ko.data = "&futex_data[%d]" % futex_counter
             futex_counter += 1
@@ -702,6 +702,7 @@ header = """%compare-lengths
 #include <toolchain.h>
 #include <syscall_handler.h>
 #include <string.h>
+#include <sys/futex.h>
 %}
 struct z_object;
 """
@@ -739,12 +740,12 @@ void z_object_wordlist_foreach(_wordlist_cb_func_t func, void *context)
 
 def write_gperf_table(fp, syms, objs, little_endian, static_begin, static_end):
     fp.write(header)
-    if sys_mutex_counter != 0:
+    if user_mutex_counter != 0:
         fp.write("static struct k_mutex kernel_mutexes[%d] = {\n"
-                 % sys_mutex_counter)
-        for i in range(sys_mutex_counter):
+                 % user_mutex_counter)
+        for i in range(user_mutex_counter):
             fp.write("Z_MUTEX_INITIALIZER(kernel_mutexes[%d])" % i)
-            if i != sys_mutex_counter - 1:
+            if i != user_mutex_counter - 1:
                 fp.write(", ")
         fp.write("};\n")
 
@@ -759,7 +760,7 @@ def write_gperf_table(fp, syms, objs, little_endian, static_begin, static_end):
 
     metadata_names = {
         "K_OBJ_THREAD" : "thread_id",
-        "K_OBJ_SYS_MUTEX" : "mutex",
+        "K_OBJ_USER_MUTEX" : "mutex",
         "K_OBJ_FUTEX" : "futex_data"
     }
 

@@ -20,8 +20,8 @@
  */
 
 #include <kernel.h>
-#include <sys/atomic.h>
 #include <zephyr/types.h>
+#include <sys/futex.h>
 
 #ifdef __cplusplus
 extern "C" {

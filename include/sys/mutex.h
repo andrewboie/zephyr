@@ -20,13 +20,10 @@
 #include <sys/atomic.h>
 #include <zephyr/types.h>
 #include <sys_clock.h>
+#include <sys/futex.h>
 
 struct sys_mutex {
-	/* Currently unused, but will be used to store state for fast mutexes
-	 * that can be locked/unlocked with atomic ops if there is no
-	 * contention
-	 */
-	atomic_t val;
+	struct z_user_mutex user_mutex;
 };
 
 #define SYS_MUTEX_DEFINE(name) \
@@ -55,11 +52,6 @@ static inline void sys_mutex_init(struct sys_mutex *mutex)
 	 */
 }
 
-__syscall int z_sys_mutex_kernel_lock(struct sys_mutex *mutex,
-				      k_timeout_t timeout);
-
-__syscall int z_sys_mutex_kernel_unlock(struct sys_mutex *mutex);
-
 /**
  * @brief Lock a mutex.
  *
@@ -83,7 +75,7 @@ __syscall int z_sys_mutex_kernel_unlock(struct sys_mutex *mutex);
 static inline int sys_mutex_lock(struct sys_mutex *mutex, k_timeout_t timeout)
 {
 	/* For now, make the syscall unconditionally */
-	return z_sys_mutex_kernel_lock(mutex, timeout);
+	return z_sys_mutex_kernel_lock(&mutex->user_mutex, timeout);
 }
 
 /**
@@ -105,10 +97,8 @@ static inline int sys_mutex_lock(struct sys_mutex *mutex, k_timeout_t timeout)
 static inline int sys_mutex_unlock(struct sys_mutex *mutex)
 {
 	/* For now, make the syscall unconditionally */
-	return z_sys_mutex_kernel_unlock(mutex);
+	return z_sys_mutex_kernel_unlock(&mutex->user_mutex);
 }
-
-#include <syscalls/mutex.h>
 
 #else
 #include <kernel.h>
