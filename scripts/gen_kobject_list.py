@@ -741,10 +741,10 @@ void z_object_wordlist_foreach(_wordlist_cb_func_t func, void *context)
 def write_gperf_table(fp, syms, objs, little_endian, static_begin, static_end):
     fp.write(header)
     if user_mutex_counter != 0:
-        fp.write("static struct k_mutex kernel_mutexes[%d] = {\n"
+        fp.write("static struct z_user_mutex_data kernel_mutexes[%d] = {\n"
                  % user_mutex_counter)
         for i in range(user_mutex_counter):
-            fp.write("Z_MUTEX_INITIALIZER(kernel_mutexes[%d])" % i)
+            fp.write("Z_USER_MUTEX_DATA_INITIALIZER(kernel_mutexes[%d])" % i)
             if i != user_mutex_counter - 1:
                 fp.write(", ")
         fp.write("};\n")
@@ -760,7 +760,7 @@ def write_gperf_table(fp, syms, objs, little_endian, static_begin, static_end):
 
     metadata_names = {
         "K_OBJ_THREAD" : "thread_id",
-        "K_OBJ_USER_MUTEX" : "mutex",
+        "K_OBJ_USER_MUTEX" : "mutex_data",
         "K_OBJ_FUTEX" : "futex_data"
     }
 

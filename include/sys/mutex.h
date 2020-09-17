@@ -24,6 +24,7 @@
 
 struct sys_mutex {
 	struct z_user_mutex user_mutex;
+	uint32_t recursive_lock_count;
 };
 
 #define SYS_MUTEX_DEFINE(name) \
@@ -43,14 +44,7 @@ struct sys_mutex {
  *
  * @return N/A
  */
-static inline void sys_mutex_init(struct sys_mutex *mutex)
-{
-	ARG_UNUSED(mutex);
-
-	/* Nothing to do, kernel-side data structures are initialized at
-	 * boot
-	 */
-}
+void sys_mutex_init(struct sys_mutex *mutex);
 
 /**
  * @brief Lock a mutex.
@@ -70,13 +64,10 @@ static inline void sys_mutex_init(struct sys_mutex *mutex)
  * @retval -EBUSY Returned without waiting.
  * @retval -EAGAIN Waiting period timed out.
  * @retval -EACCESS Caller has no access to provided mutex address
- * @retval -EINVAL Provided mutex not recognized by the kernel
+ * @retval -EINVAL Provided mutex not recognized by the kernel, or too many
+ *                 recursive mutex locks
  */
-static inline int sys_mutex_lock(struct sys_mutex *mutex, k_timeout_t timeout)
-{
-	/* For now, make the syscall unconditionally */
-	return z_sys_mutex_kernel_lock(&mutex->user_mutex, timeout);
-}
+int sys_mutex_lock(struct sys_mutex *mutex, k_timeout_t timeout);
 
 /**
  * @brief Unlock a mutex.
@@ -94,11 +85,7 @@ static inline int sys_mutex_lock(struct sys_mutex *mutex, k_timeout_t timeout)
  *                 locked
  * @retval -EPERM Caller does not own the mutex
  */
-static inline int sys_mutex_unlock(struct sys_mutex *mutex)
-{
-	/* For now, make the syscall unconditionally */
-	return z_sys_mutex_kernel_unlock(&mutex->user_mutex);
-}
+int sys_mutex_unlock(struct sys_mutex *mutex);
 
 #else
 #include <kernel.h>

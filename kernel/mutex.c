@@ -116,41 +116,15 @@ static bool adjust_owner_prio(struct k_mutex *mutex, int32_t new_prio)
 	return false;
 }
 
-int z_impl_k_mutex_lock(struct k_mutex *mutex, k_timeout_t timeout)
+/* If we get this far, we made a determination that the mutex is definitely
+ * contended by some other thread with the "lock" spinlock held with the
+ * provided key
+ */
+static int mutex_lock_internal(struct k_mutex *mutex, k_timeout_t timeout,
+			       k_spinlock_key_t key)
 {
 	int new_prio;
-	k_spinlock_key_t key;
 	bool resched = false;
-
-	__ASSERT(!arch_is_in_isr(), "mutexes cannot be used inside ISRs");
-
-	sys_trace_mutex_lock(mutex);
-	key = k_spin_lock(&lock);
-
-	if (likely((mutex->lock_count == 0U) || (mutex->owner == _current))) {
-
-		mutex->owner_orig_prio = (mutex->lock_count == 0U) ?
-					_current->base.prio :
-					mutex->owner_orig_prio;
-
-		mutex->lock_count++;
-		mutex->owner = _current;
-
-		LOG_DBG("%p took mutex %p, count: %d, orig prio: %d",
-			_current, mutex, mutex->lock_count,
-			mutex->owner_orig_prio);
-
-		k_spin_unlock(&lock, key);
-		sys_trace_end_call(SYS_TRACE_ID_MUTEX_LOCK);
-
-		return 0;
-	}
-
-	if (unlikely(K_TIMEOUT_EQ(timeout, K_NO_WAIT))) {
-		k_spin_unlock(&lock, key);
-		sys_trace_end_call(SYS_TRACE_ID_MUTEX_LOCK);
-		return -EBUSY;
-	}
 
 	new_prio = new_prio_for_inheritance(_current->base.prio,
 					    mutex->owner->base.prio);
@@ -197,6 +171,42 @@ int z_impl_k_mutex_lock(struct k_mutex *mutex, k_timeout_t timeout)
 
 	sys_trace_end_call(SYS_TRACE_ID_MUTEX_LOCK);
 	return -EAGAIN;
+}
+
+int z_impl_k_mutex_lock(struct k_mutex *mutex, k_timeout_t timeout)
+{
+	k_spinlock_key_t key;
+
+	__ASSERT(!arch_is_in_isr(), "mutexes cannot be used inside ISRs");
+
+	sys_trace_mutex_lock(mutex);
+	key = k_spin_lock(&lock);
+
+	if (likely((mutex->lock_count == 0U) || (mutex->owner == _current))) {
+		if (likely(mutex->lock_count == 0U)) {
+			mutex->owner_orig_prio =
+				k_thread_priority_get(_current);
+			mutex->owner = _current;
+		}
+		mutex->lock_count++;
+
+		LOG_DBG("%p took mutex %p, count: %d, orig prio: %d",
+			_current, mutex, mutex->lock_count,
+			mutex->owner_orig_prio);
+
+		k_spin_unlock(&lock, key);
+		sys_trace_end_call(SYS_TRACE_ID_MUTEX_LOCK);
+
+		return 0;
+	}
+
+	if (unlikely(K_TIMEOUT_EQ(timeout, K_NO_WAIT))) {
+		k_spin_unlock(&lock, key);
+		sys_trace_end_call(SYS_TRACE_ID_MUTEX_LOCK);
+		return -EBUSY;
+	}
+
+	return mutex_lock_internal(mutex, timeout, key);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -290,3 +300,86 @@ static inline int z_vrfy_k_mutex_unlock(struct k_mutex *mutex)
 }
 #include <syscalls/k_mutex_unlock_mrsh.c>
 #endif
+
+static struct z_user_mutex_data *get_mutex_data(struct z_user_mutex *mutex)
+{
+	struct z_object *obj;
+
+	obj = z_object_find(mutex);
+	if (obj == NULL || obj->type != K_OBJ_USER_MUTEX) {
+		return NULL;
+	}
+
+	return obj->data.mutex_data;
+}
+
+static bool check_sys_mutex_addr(struct z_user_mutex *addr)
+{
+	return Z_SYSCALL_MEMORY_WRITE(addr, sizeof(struct z_user_mutex));
+}
+
+int z_impl_z_user_mutex_kernel_lock(struct z_user_mutex *mutex,
+				   k_timeout_t timeout)
+{
+	struct z_user_mutex_data *mutex_data = get_mutex_data(mutex);
+	k_spinlock_key_t key;
+	k_tid_t owner;
+	atomic_ptr_t val;
+
+	if (mutex_data == NULL) {
+		return -EINVAL;
+	}
+
+	key = k_spin_lock(&lock);
+	val = atomic_ptr_get(mutex->val);
+
+	if (!z_mutex_has_waiters(val)) {
+		atomic_ptr_set(&mutex->val,
+			(atomic_ptr_t)((uintptr_t)val | Z_USER_MUTEX_WAITERS));
+
+		owner = z_mutex_get_owner(val);
+		// validate owner....
+		mutex_data->mutex.owner = owner;
+		mutex_data->mutex.owner_orig_prio = owner->base.prio;
+		mutex_data->mutex.lock_count = 1;
+	}
+
+	return mutex_lock_internal(&mutex_data->mutex, timeout, key);
+}
+
+static inline int z_vrfy_z_user_mutex_kernel_lock(struct z_user_mutex *mutex,
+						 k_timeout_t timeout)
+{
+	if (check_sys_mutex_addr(mutex)) {
+		return -EACCES;
+	}
+
+	return z_impl_z_user_mutex_kernel_lock(mutex, timeout);
+}
+#include <syscalls/z_user_mutex_kernel_lock_mrsh.c>
+
+int z_impl_z_user_mutex_kernel_unlock(struct z_user_mutex *mutex)
+{
+	struct z_user_mutex_data *mutex_data = get_mutex_data(mutex);
+
+	if (mutex_data == NULL || mutex_data->mutex.lock_count == 0) {
+		return -EINVAL;
+	}
+
+	if (mutex_data->mutex.owner != _current) {
+		return -EPERM;
+	}
+
+	k_mutex_unlock(&mutex_data->mutex);
+	return 0;
+}
+
+static inline int z_vrfy_z_user_mutex_kernel_unlock(struct z_user_mutex *mutex)
+{
+	if (check_sys_mutex_addr(mutex)) {
+		return -EACCES;
+	}
+
+	return z_impl_z_user_mutex_kernel_unlock(mutex);
+}
+#include <syscalls/z_user_mutex_kernel_unlock_mrsh.c>

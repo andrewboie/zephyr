@@ -110,6 +110,7 @@ struct k_mem_domain;
 struct k_mem_partition;
 struct k_futex;
 struct z_futex_data;
+struct z_user_mutex_data;
 
 /**
  * @brief Kernel Object Types
@@ -153,8 +154,8 @@ struct z_stack_data {
 
 /* Object extra data. Only some objects use this, determined by object type */
 union z_object_data {
-	/* Backing mutex for K_OBJ_SYS_MUTEX */
-	struct k_mutex *mutex;
+	/* Backing mutex for K_OBJ_USER_MUTEX */
+	struct z_user_mutex_data *mutex_data;
 
 	/* Numerical thread ID for K_OBJ_THREAD */
 	unsigned int thread_id;
