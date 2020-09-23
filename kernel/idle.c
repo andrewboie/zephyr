@@ -165,7 +165,6 @@ void idle(void *p1, void *unused2, void *unused3)
 
 		if (to_abort) {
 			cpu->pending_abort = NULL;
-			arch_irq_unlock(key);
 
 			/* Safe to unlock interrupts here. We've atomically
 			 * checked and stashed cpu->pending_abort into a stack
@@ -185,7 +184,7 @@ void idle(void *p1, void *unused2, void *unused3)
 			 * figure out what to do next, it's not necessarily
 			 * the case that there are no other runnable threads.
 			 */
-			z_reschedule_unlocked();
+			z_reschedule_irqlock(key);
 			continue;
 		}
 		arch_irq_unlock(key);
