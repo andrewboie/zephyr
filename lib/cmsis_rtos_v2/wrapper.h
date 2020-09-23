@@ -14,7 +14,10 @@
 #define FALSE   0
 
 struct cv2_thread {
-	sys_dnode_t node;
+	/* Reserve room for mem lab free list; we need freed slabs not to
+	 * be corrupted
+	 */
+	char *slab_list;
 	struct k_thread z_thread;
 	struct k_poll_signal poll_signal;
 	struct k_poll_event poll_event;
@@ -23,6 +26,7 @@ struct cv2_thread {
 	uint32_t attr_bits;
 	struct k_sem join_guard;
 	char has_joined;
+	k_thread_stack_t *alloc_stack;
 };
 
 struct cv2_timer {
