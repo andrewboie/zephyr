@@ -18,8 +18,7 @@ uint32_t osThreadFlagsSet(osThreadId_t thread_id, uint32_t flags)
 	int key;
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 
-	if ((thread_id == NULL) || (is_cmsis_rtos_v2_thread(thread_id) == NULL)
-	    || (flags & 0x80000000)) {
+	if (!is_cmsis_rtos_v2_thread(thread_id) || (flags & 0x80000000)) {
 		return osFlagsErrorParameter;
 	}
 

@@ -63,20 +63,28 @@ static void zephyr_thread_wrapper(void *arg1, void *arg2, void *arg3)
 	k_sem_give(&tid->join_guard);
 }
 
-void *is_cmsis_rtos_v2_thread(void *thread_id)
+bool is_cmsis_rtos_v2_thread(osThreadId_t thread_id)
 {
 	sys_dnode_t *pnode;
-	struct cv2_thread *itr;
+	struct cv2_thread *to_check;
+	bool result = false;
+
+	to_check = (struct cv2_thread *)thread_id;
+	if (to_check == NULL) {
+		return result;
+	}
 
 	SYS_DLIST_FOR_EACH_NODE(&thread_list, pnode) {
-		itr = CONTAINER_OF(pnode, struct cv2_thread, node);
+		struct cv2_thread *itr =
+			CONTAINER_OF(pnode, struct cv2_thread, node);
 
-		if ((void *)itr == thread_id) {
-			return itr;
+		if (itr == to_check) {
+			result = true;
+			break;
 		}
 	}
 
-	return NULL;
+	return result;
 }
 
 osThreadId_t get_cmsis_thread_id(k_tid_t tid)
@@ -219,22 +227,13 @@ osThreadId_t osThreadNew(osThreadFunc_t threadfunc, void *arg,
  */
 const char *osThreadGetName(osThreadId_t thread_id)
 {
-	const char *name = NULL;
+	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 
-	if (k_is_in_isr() || (thread_id == NULL)) {
-		name = NULL;
-	} else {
-		if (is_cmsis_rtos_v2_thread(thread_id) == NULL) {
-			name = NULL;
-		} else {
-			struct cv2_thread *tid =
-				(struct cv2_thread *)thread_id;
-
-			name = k_thread_name_get(&tid->z_thread);
-		}
+	if (k_is_in_isr() || !is_cmsis_rtos_v2_thread(thread_id)) {
+		return NULL;
 	}
 
-	return name;
+	return k_thread_name_get(&tid->z_thread);
 }
 
 /**
@@ -255,8 +254,7 @@ osPriority_t osThreadGetPriority(osThreadId_t thread_id)
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 	uint32_t priority;
 
-	if (k_is_in_isr() || (tid == NULL) ||
-	    (is_cmsis_rtos_v2_thread(tid) == NULL) ||
+	if (k_is_in_isr() || !is_cmsis_rtos_v2_thread(tid) ||
 	    (_is_thread_cmsis_inactive(&tid->z_thread))) {
 		return osPriorityError;
 	}
@@ -272,7 +270,7 @@ osStatus_t osThreadSetPriority(osThreadId_t thread_id, osPriority_t priority)
 {
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 
-	if ((tid == NULL) || (is_cmsis_rtos_v2_thread(tid) == NULL) ||
+	if (!is_cmsis_rtos_v2_thread(tid) ||
 	    (priority <= osPriorityNone) || (priority > osPriorityISR)) {
 		return osErrorParameter;
 	}
@@ -299,8 +297,7 @@ osThreadState_t osThreadGetState(osThreadId_t thread_id)
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 	osThreadState_t state;
 
-	if (k_is_in_isr() || (tid == NULL) ||
-	    (is_cmsis_rtos_v2_thread(tid) == NULL)) {
+	if (k_is_in_isr() || !is_cmsis_rtos_v2_thread(tid)) {
 		return osThreadError;
 	}
 
@@ -353,8 +350,7 @@ uint32_t osThreadGetStackSize(osThreadId_t thread_id)
 {
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 
-	__ASSERT(tid, "");
-	__ASSERT(is_cmsis_rtos_v2_thread(tid), "");
+	__ASSERT(is_cmsis_rtos_v2_thread(thread_id), "");
 	__ASSERT(!k_is_in_isr(), "");
 
 	return tid->z_thread.stack_info.size;
@@ -370,8 +366,7 @@ uint32_t osThreadGetStackSpace(osThreadId_t thread_id)
 	size_t unused;
 	int ret;
 
-	__ASSERT(tid, "");
-	__ASSERT(is_cmsis_rtos_v2_thread(tid), "");
+	__ASSERT(is_cmsis_rtos_v2_thread(thread_id), "");
 	__ASSERT(!k_is_in_isr(), "");
 
 	ret = k_thread_stack_space_get(&tid->z_thread, &unused);
@@ -389,7 +384,7 @@ osStatus_t osThreadSuspend(osThreadId_t thread_id)
 {
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 
-	if ((tid == NULL) || (is_cmsis_rtos_v2_thread(tid) == NULL)) {
+	if (!is_cmsis_rtos_v2_thread(tid)) {
 		return osErrorParameter;
 	}
 
@@ -413,7 +408,7 @@ osStatus_t osThreadResume(osThreadId_t thread_id)
 {
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 
-	if ((tid == NULL) || (is_cmsis_rtos_v2_thread(tid) == NULL)) {
+	if (!is_cmsis_rtos_v2_thread(tid)) {
 		return osErrorParameter;
 	}
 
@@ -438,7 +433,7 @@ osStatus_t osThreadDetach(osThreadId_t thread_id)
 {
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 
-	if ((tid == NULL) || (is_cmsis_rtos_v2_thread(tid) == NULL)) {
+	if (!is_cmsis_rtos_v2_thread(tid)) {
 		return osErrorParameter;
 	}
 
@@ -468,7 +463,7 @@ osStatus_t osThreadJoin(osThreadId_t thread_id)
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 	osStatus_t status = osError;
 
-	if ((tid == NULL) || (is_cmsis_rtos_v2_thread(tid) == NULL)) {
+	if (!is_cmsis_rtos_v2_thread(tid)) {
 		return osErrorParameter;
 	}
 
@@ -525,7 +520,7 @@ osStatus_t osThreadTerminate(osThreadId_t thread_id)
 {
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 
-	if ((tid == NULL) || (is_cmsis_rtos_v2_thread(tid) == NULL)) {
+	if (!is_cmsis_rtos_v2_thread(tid)) {
 		return osErrorParameter;
 	}
 

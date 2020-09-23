@@ -67,6 +67,6 @@ struct cv2_event_flags {
 };
 
 extern osThreadId_t get_cmsis_thread_id(k_tid_t tid);
-extern void *is_cmsis_rtos_v2_thread(void *thread_id);
+extern bool is_cmsis_rtos_v2_thread(osThreadId_t thread_id);
 
 #endif
