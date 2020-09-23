@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/atomic.h>
 #include <debug/stack.h>
+#include <init.h>
 #include "wrapper.h"
 
 static const osThreadAttr_t init_thread_attrs = {
@@ -51,6 +52,15 @@ static inline uint32_t cmsis_to_zephyr_priority(uint32_t c_prio)
 {
 	return (osPriorityISR - c_prio);
 }
+
+static int cmsis_thread_init(const struct device *unused)
+{
+	sys_dlist_init(&thread_list);
+
+	return 0;
+}
+
+SYS_INIT(cmsis_thread_init, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 
 static void zephyr_thread_wrapper(void *arg1, void *arg2, void *arg3)
 {
@@ -114,7 +124,6 @@ osThreadId_t osThreadNew(osThreadFunc_t threadfunc, void *arg,
 	int32_t prio;
 	osPriority_t cv2_prio;
 	struct cv2_thread *tid;
-	static uint32_t one_time;
 	void *stack;
 	size_t stack_size;
 	uint32_t this_thread_num;
@@ -192,12 +201,6 @@ osThreadId_t osThreadNew(osThreadFunc_t threadfunc, void *arg,
 	k_poll_event_init(&tid->poll_event, K_POLL_TYPE_SIGNAL,
 			  K_POLL_MODE_NOTIFY_ONLY, &tid->poll_signal);
 	tid->signal_results = 0U;
-
-	/* TODO: Do this somewhere only once */
-	if (one_time == 0U) {
-		sys_dlist_init(&thread_list);
-		one_time = 1U;
-	}
 
 	sys_dlist_append(&thread_list, &tid->node);
 
