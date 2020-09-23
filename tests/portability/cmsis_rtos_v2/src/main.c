@@ -34,7 +34,8 @@ void test_main(void)
 			 ztest_unit_test(test_thread_join),
 			 ztest_unit_test(test_thread_detached),
 			 ztest_unit_test(test_thread_joinable_detach),
-			 ztest_unit_test(test_thread_joinable_terminate));
+			 ztest_unit_test(test_thread_joinable_terminate),
+			 ztest_unit_test(test_thread_joinable_selfexit));
 
 	ztest_run_test_suite(test_cmsis_v2_apis);
 }

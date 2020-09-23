@@ -379,3 +379,25 @@ void test_thread_joinable_terminate(void)
 
 	osDelay(k_ms_to_ticks_ceil32(DELTA_MS));
 }
+
+static void selfexit_entry(void *argument)
+{
+	/* Do nothing and exit */
+}
+
+/* Show that if a thread self-exits, osThreadJoin still works (#23063) */
+void test_thread_joinable_selfexit(void)
+{
+	osThreadAttr_t attr = {
+		.attr_bits = osThreadJoinable,
+		.priority = osPriorityAboveNormal
+	};
+	osThreadId_t thr;
+	osStatus_t status;
+
+	thr = osThreadNew(selfexit_entry, NULL, &attr);
+	/* Thr will immediately run and self-exit */
+
+	status = osThreadJoin(thr);
+	zassert_equal(status, osOK, "join thread failed");
+}
