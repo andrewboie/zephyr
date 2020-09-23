@@ -108,7 +108,6 @@ static void zephyr_thread_wrapper(void *arg1, void *arg2, void *arg3)
 	fun_ptr(arg1);
 
 	tid->has_joined = TRUE;
-	k_sem_give(&tid->join_guard);
 }
 
 bool is_cmsis_rtos_v2_thread(osThreadId_t thread_id)
@@ -228,9 +227,9 @@ osThreadId_t osThreadNew(osThreadFunc_t threadfunc, void *arg,
 
 	(void)k_thread_create(&tid->z_thread,
 			      stack, stack_size,
-			      (k_thread_entry_t)zephyr_thread_wrapper,
+			      zephyr_thread_wrapper,
 			      (void *)arg, tid, threadfunc,
-			      prio, 0, K_NO_WAIT);
+			      prio, 0, K_FOREVER);
 
 	if (attr->name == NULL) {
 		strncpy(tid->name, init_thread_attrs.name,
@@ -241,6 +240,7 @@ osThreadId_t osThreadNew(osThreadFunc_t threadfunc, void *arg,
 
 	k_thread_name_set(&tid->z_thread, tid->name);
 	tid->z_thread.fn_abort = cmsis_v2_thread_fn_abort;
+	k_thread_start(&tid->z_thread);
 
 	return (osThreadId_t)tid;
 }
