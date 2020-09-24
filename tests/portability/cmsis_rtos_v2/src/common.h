@@ -30,5 +30,6 @@ extern void test_thread_detached(void);
 extern void test_thread_joinable_detach(void);
 extern void test_thread_joinable_terminate(void);
 extern void test_thread_joinable_selfexit(void);
+extern void test_thread_recycling(void);
 
 #endif

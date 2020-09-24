@@ -319,10 +319,27 @@ osThreadState_t osThreadGetState(osThreadId_t thread_id)
 {
 	struct cv2_thread *tid = (struct cv2_thread *)thread_id;
 	osThreadState_t state;
+	uint8_t zstate;
 
 	if (k_is_in_isr() || !is_cmsis_rtos_v2_thread(tid)) {
 		return osThreadError;
 	}
+
+	if (osThreadGetId() == thread_id) {
+		return osThreadRunning;
+	}
+
+	zstate = tid->z_thread.base.thread_state;
+
+	if ((zstate & _THREAD_DEAD) != 0) {
+		return osThreadInactive;
+	}
+
+	if ((zstate & (_THREAD_SUSPENDED | _THREAD_PENDING)) != 0) {
+		return osThreadBlocked;
+	}
+
+	if (zstate &)
 
 	switch (tid->z_thread.base.thread_state) {
 	case _THREAD_DUMMY:

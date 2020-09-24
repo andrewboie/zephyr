@@ -383,6 +383,7 @@ void test_thread_joinable_terminate(void)
 static void selfexit_entry(void *argument)
 {
 	/* Do nothing and exit */
+	printk("herro\n");
 }
 
 /* Show that if a thread self-exits, osThreadJoin still works (#23063) */
@@ -394,10 +395,45 @@ void test_thread_joinable_selfexit(void)
 	};
 	osThreadId_t thr;
 	osStatus_t status;
+	osThreadState_t state;
+
+	k_thread_priority_set(k_current_get(), K_LOWEST_APPLICATION_THREAD_PRIO);
 
 	thr = osThreadNew(selfexit_entry, NULL, &attr);
+	zassert_not_null(thr, "failed to start thread");
 	/* Thr will immediately run and self-exit */
 
+	state = osThreadGetState(thr);
+	zassert_equal(state, osThreadTerminated,
+		      "thread state was %d", state);
 	status = osThreadJoin(thr);
 	zassert_equal(status, osOK, "join thread failed");
+}
+
+static void recycle_entry(void *argument)
+{
+	/* Do nothing and exit */
+	printk("bye\n");
+}
+
+/* Show that the infrastructure reclaims resources and that we can create
+ * more threads total than just the config value
+ */
+void test_thread_recycling(void)
+{
+#if 0
+	for (int i = 0; i < CONFIG_CMSIS_V2_THREAD_MAX_COUNT * 4; i++) {
+		osThreadAttr_t attr = {
+			.priority = osPriorityAboveNormal
+		};
+		osThreadId_t thr;
+
+		thr = osThreadNew(recycle_entry, NULL, &attr);
+		zassert_equal(osThreadYield(), osOK, "failed to yield");
+		/* Thread will immediately run and self-exit */
+
+		zassert_not_null(thr, "thread creation failed at iteration %d",
+				 i);
+	}
+#endif
 }
