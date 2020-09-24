@@ -445,6 +445,46 @@ void z_move_thread_to_end_of_prio_q(struct k_thread *thread)
 	}
 }
 
+bool z_wake_one(_wait_q_t *wait_q, unsigned int swap_retval,
+		z_thread_wake_cb_t cb, void *obj, void *data)
+{
+	struct k_thread *thread;
+	bool ret;
+
+	LOCKED(&sched_spinlock) {
+		thread = _priq_wait_best(&wait_q->waitq);
+
+		if (thread != NULL) {
+			if (cb != NULL) {
+				cb(thread, obj, data);
+			}
+			z_thread_return_value_set_with_data(thread,
+							    swap_retval,
+							    data);
+			unpend_thread_no_timeout(thread);
+			ready_thread(thread);
+			ret = true;
+		} else {
+			ret = false;
+		}
+	}
+
+	return ret;
+}
+
+bool z_wake_all(_wait_q_t *wait_q, unsigned int swap_retval,
+		z_thread_wake_cb_t cb, void *obj, void *data)
+{
+	bool ret = false;
+
+	while (z_wake_one(wait_q, swap_retval, cb, obj, data)) {
+		ret = true;
+	}
+
+	/* True if we woke at least one thread up */
+	return ret;
+}
+
 void z_sched_start(struct k_thread *thread)
 {
 	k_spinlock_key_t key = k_spin_lock(&sched_spinlock);

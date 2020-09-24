@@ -112,6 +112,12 @@ int k_msgq_cleanup(struct k_msgq *msgq)
 	return 0;
 }
 
+static void put_wakeup_action(struct k_thread *thread, void *obj, void *data)
+{
+	struct k_msgq *msgq = obj;
+
+	(void)memcpy(thread->base.swap_data, data, msgq->msg_size);
+}
 
 int z_impl_k_msgq_put(struct k_msgq *msgq, const void *data, k_timeout_t timeout)
 {
@@ -124,26 +130,19 @@ int z_impl_k_msgq_put(struct k_msgq *msgq, const void *data, k_timeout_t timeout
 	key = k_spin_lock(&msgq->lock);
 
 	if (msgq->used_msgs < msgq->max_msgs) {
-		/* message queue isn't full */
-		pending_thread = z_unpend_first_thread(&msgq->wait_q);
-		if (pending_thread != NULL) {
-			/* give message to waiting thread */
-			(void)memcpy(pending_thread->base.swap_data, data,
-			       msgq->msg_size);
-			/* wake up waiting thread */
-			arch_thread_return_value_set(pending_thread, 0);
-			z_ready_thread(pending_thread);
+		if (z_wake_one(&msgq->wait_q, 0, put_wakeup_action, msgq,
+			       data)) {
 			z_reschedule(&msgq->lock, key);
 			return 0;
-		} else {
-			/* put message in queue */
-			(void)memcpy(msgq->write_ptr, data, msgq->msg_size);
-			msgq->write_ptr += msgq->msg_size;
-			if (msgq->write_ptr == msgq->buffer_end) {
-				msgq->write_ptr = msgq->buffer_start;
-			}
-			msgq->used_msgs++;
 		}
+
+		/* put message in queue */
+		(void)memcpy(msgq->write_ptr, data, msgq->msg_size);
+		msgq->write_ptr += msgq->msg_size;
+		if (msgq->write_ptr == msgq->buffer_end) {
+			msgq->write_ptr = msgq->buffer_start;
+		}
+		msgq->used_msgs++;
 		result = 0;
 	} else if (K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
 		/* don't wait for message space to become available */
@@ -189,6 +188,15 @@ static inline void z_vrfy_k_msgq_get_attrs(struct k_msgq *q,
 #include <syscalls/k_msgq_get_attrs_mrsh.c>
 #endif
 
+static void get_wakeup_action(struct k_thread *thread, void *obj, void *data)
+{
+	struct k_msgq *msgq = obj;
+
+	ARG_UNUSED(data);
+	(void)memcpy(msgq->write_ptr, thread->base.swap_data,
+		     msgq->msg_size);
+}
+
 int z_impl_k_msgq_get(struct k_msgq *msgq, void *data, k_timeout_t timeout)
 {
 	__ASSERT(!arch_is_in_isr() || K_TIMEOUT_EQ(timeout, K_NO_WAIT), "");
@@ -208,21 +216,13 @@ int z_impl_k_msgq_get(struct k_msgq *msgq, void *data, k_timeout_t timeout)
 		}
 		msgq->used_msgs--;
 
-		/* handle first thread waiting to write (if any) */
-		pending_thread = z_unpend_first_thread(&msgq->wait_q);
-		if (pending_thread != NULL) {
-			/* add thread's message to queue */
-			(void)memcpy(msgq->write_ptr, pending_thread->base.swap_data,
-			       msgq->msg_size);
+		if (z_wake_one(&msgq->wait_q, 0, get_wakeup_action, msgq,
+			       NULL)) {
 			msgq->write_ptr += msgq->msg_size;
 			if (msgq->write_ptr == msgq->buffer_end) {
 				msgq->write_ptr = msgq->buffer_start;
 			}
 			msgq->used_msgs++;
-
-			/* wake up waiting thread */
-			arch_thread_return_value_set(pending_thread, 0);
-			z_ready_thread(pending_thread);
 			z_reschedule(&msgq->lock, key);
 			return 0;
 		}

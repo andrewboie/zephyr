@@ -128,13 +128,11 @@ int z_impl_k_mutex_lock(struct k_mutex *mutex, k_timeout_t timeout)
 	key = k_spin_lock(&lock);
 
 	if (likely((mutex->lock_count == 0U) || (mutex->owner == _current))) {
-
-		mutex->owner_orig_prio = (mutex->lock_count == 0U) ?
-					_current->base.prio :
-					mutex->owner_orig_prio;
-
+		if (mutex->lock_count == 0U) {
+			mutex->owner_orig_prio = _current->base.prio;
+			mutex->owner = _current;
+		}
 		mutex->lock_count++;
-		mutex->owner = _current;
 
 		LOG_DBG("%p took mutex %p, count: %d, orig prio: %d",
 			_current, mutex, mutex->lock_count,
@@ -209,6 +207,18 @@ static inline int z_vrfy_k_mutex_lock(struct k_mutex *mutex,
 #include <syscalls/k_mutex_lock_mrsh.c>
 #endif
 
+static void mutex_wake_cb(struct k_thread *new_owner, void *obj, void *context)
+{
+	struct k_mutex *mutex = obj;
+	ARG_UNUSED(context);
+
+	mutex->owner = new_owner;
+	mutex->owner_orig_prio = new_owner->base.prio;
+
+	LOG_DBG("new owner of mutex %p: %p (prio: %d)",
+		mutex, new_owner, new_owner ? new_owner->base.prio : -1000);
+}
+
 int z_impl_k_mutex_unlock(struct k_mutex *mutex)
 {
 	struct k_thread *new_owner;
@@ -248,32 +258,14 @@ int z_impl_k_mutex_unlock(struct k_mutex *mutex)
 	}
 
 	k_spinlock_key_t key = k_spin_lock(&lock);
-
 	adjust_owner_prio(mutex, mutex->owner_orig_prio);
 
-	/* Get the new owner, if any */
-	new_owner = z_unpend_first_thread(&mutex->wait_q);
-
-	mutex->owner = new_owner;
-
-	LOG_DBG("new owner of mutex %p: %p (prio: %d)",
-		mutex, new_owner, new_owner ? new_owner->base.prio : -1000);
-
-	if (new_owner != NULL) {
-		/*
-		 * new owner is already of higher or equal prio than first
-		 * waiter since the wait queue is priority-based: no need to
-		 * ajust its priority
-		 */
-		mutex->owner_orig_prio = new_owner->base.prio;
-		arch_thread_return_value_set(new_owner, 0);
-		z_ready_thread(new_owner);
-		z_reschedule(&lock, key);
-	} else {
+	if (!z_wake_one(&mutex->wait_q, 0, mutex_wake_cb, mutex, NULL)) {
+		mutex->owner = NULL;
 		mutex->lock_count = 0U;
-		k_spin_unlock(&lock, key);
 	}
-
+	/* Always reschedule since we may have adjusted our own priority */
+	z_reschedule(&lock, key);
 
 k_mutex_unlock_return:
 	k_sched_unlock();

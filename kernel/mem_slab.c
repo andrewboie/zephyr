@@ -133,11 +133,8 @@ int k_mem_slab_alloc(struct k_mem_slab *slab, void **mem, k_timeout_t timeout)
 void k_mem_slab_free(struct k_mem_slab *slab, void **mem)
 {
 	k_spinlock_key_t key = k_spin_lock(&lock);
-	struct k_thread *pending_thread = z_unpend_first_thread(&slab->wait_q);
 
-	if (pending_thread != NULL) {
-		z_thread_return_value_set_with_data(pending_thread, 0, *mem);
-		z_ready_thread(pending_thread);
+	if (z_wake_one(&slab->wait_q, 0, NULL, NULL, *mem)) {
 		z_reschedule(&lock, key);
 	} else {
 		**(char ***)mem = slab->free_list;

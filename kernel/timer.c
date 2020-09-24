@@ -159,9 +159,13 @@ static inline void z_vrfy_k_timer_start(struct k_timer *timer,
 
 void z_impl_k_timer_stop(struct k_timer *timer)
 {
-	int inactive = z_abort_timeout(&timer->timeout) != 0;
+	int inactive;
+
+	k_spinlock_key_t key = k_spin_lock(&lock);
+	inactive = z_abort_timeout(&timer->timeout) != 0;
 
 	if (inactive) {
+		k_spin_unlock(&lock, key);
 		return;
 	}
 
@@ -169,11 +173,10 @@ void z_impl_k_timer_stop(struct k_timer *timer)
 		timer->stop_fn(timer);
 	}
 
-	struct k_thread *pending_thread = z_unpend1_no_timeout(&timer->wait_q);
-
-	if (pending_thread != NULL) {
-		z_ready_thread(pending_thread);
-		z_reschedule_unlocked();
+	if (z_wake_one(&timer->wait_q, 0, NULL, NULL, NULL)) {
+		z_reschedule(&lock, key);
+	} else {
+		k_spin_unlock(&lock, key);
 	}
 }
 

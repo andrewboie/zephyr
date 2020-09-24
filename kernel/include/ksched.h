@@ -36,6 +36,7 @@ BUILD_ASSERT(K_LOWEST_APPLICATION_THREAD_PRIO
 #define Z_ASSERT_VALID_PRIO(prio, entry_point) __ASSERT((prio) == -1, "")
 #endif
 
+/* XXX unused anywhere except the "arm_thread_swap" test */
 void z_move_thread_to_end_of_prio_q(struct k_thread *thread);
 void z_remove_thread_from_ready_q(struct k_thread *thread);
 int z_is_thread_time_slicing(struct k_thread *thread);
@@ -311,5 +312,45 @@ static inline struct k_thread *z_unpend1_no_timeout(_wait_q_t *wait_q)
 
 	return thread;
 }
+
+
+
+/* Callback which just executes `thread->swap_data = data;` */
+void z_wake_cb_data_set(struct k_thread *thread, void *ignored, void *data);
+
+typedef void (*z_thread_wake_cb_t)(struct k_thread *thread, void *obj,
+				   void *data);
+
+/**
+ * Wake up a thread pending on the provided wait queue
+ *
+ * Given a wait_q, wake up the highest priority thread on the queue. If the
+ * queue was empty just return false.
+ *
+ * Otherwise, do the following, in order,  holding sched_spinlock the entire
+ * time so that the thread state is guaranteed not to change:
+ * - if the callback function is provided, run the callback function with
+ *   the provided object and data pointers
+ * - Set the thread's return value to swap_retval with data
+ * - un-pend and ready the thread
+ *
+ * @param wait_q Wait queue to wake up the highest prio thread
+ * @param swap_retval Swap return value for woken thread
+ * @param cb Callback function, or NULL
+ * @param obj Kernel object associated with this wake operation, passed to cb.
+ *            Only used by the callback. May be NULL.
+ * @param data data value passed to the callback function, also set as return
+ *             value data. May be NULL.
+ * @retval true If a thread waa woken up
+ * @retval false If the wait_q was empty
+ */
+bool z_wake_one(_wait_q_t *wait_q, unsigned int swap_retval,
+		z_thread_wake_cb_t cb, void *obj, void *data);
+
+/**
+ * Wake up all threads pending on the provided wait queue
+ */
+bool z_wake_all(_wait_q_t *wait_q, unsigned int swap_retval,
+		z_thread_wake_cb_t cb, void *context);
 
 #endif /* ZEPHYR_KERNEL_INCLUDE_KSCHED_H_ */

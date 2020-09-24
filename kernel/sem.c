@@ -110,17 +110,14 @@ void z_impl_k_sem_give(struct k_sem *sem)
 	struct k_thread *thread;
 
 	sys_trace_semaphore_give(sem);
-	thread = z_unpend_first_thread(&sem->wait_q);
 
-	if (thread != NULL) {
-		arch_thread_return_value_set(thread, 0);
-		z_ready_thread(thread);
+	if (z_wake_one(&sem->wait_q, 0, NULL, NULL, NULL)) {
+		z_reschedule(&lock, key);
 	} else {
 		sem->count += (sem->count != sem->limit) ? 1U : 0U;
 		handle_poll_events(sem);
+		k_spin_unlock(&lock, key);
 	}
-
-	z_reschedule(&lock, key);
 	sys_trace_end_call(SYS_TRACE_ID_SEMA_GIVE);
 }
 

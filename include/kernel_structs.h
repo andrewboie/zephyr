@@ -26,7 +26,6 @@
 #include <sched_priq.h>
 #include <sys/dlist.h>
 #include <sys/util.h>
-#include <sys/sys_heap.h>
 #endif
 
 #define K_NUM_PRIORITIES \
