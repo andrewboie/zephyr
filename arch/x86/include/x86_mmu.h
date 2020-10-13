@@ -123,15 +123,7 @@ void z_x86_set_stack_guard(k_thread_stack_t *stack);
 extern uint8_t z_shared_kernel_page_start;
 #endif /* CONFIG_X86_KPTI */
 
-/* Set up per-thread page tables just prior to entering user mode */
-void z_x86_thread_pt_init(struct k_thread *thread);
-
-/* Apply a memory domain policy to a set of thread page tables.
- *
- * Must be called with z_mem_domain_lock held.
- */
-void z_x86_apply_mem_domain(struct k_thread *thread,
-			    struct k_mem_domain *mem_domain);
+void z_x86_stack_perms(struct k_thread *thread);
 #endif /* CONFIG_USERSPACE */
 
 /* Set CR3 to a physical address. There must be a valid top-level paging
