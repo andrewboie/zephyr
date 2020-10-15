@@ -17,6 +17,7 @@
 #include <x86_mmu.h>
 #include <init.h>
 #include <kernel_internal.h>
+#include <drivers/interrupt_controller/loapic.h>
 
 LOG_MODULE_DECLARE(os);
 
@@ -218,6 +219,28 @@ static inline void tlb_flush_page(void *addr)
 
 	/* TODO: Need to implement TLB shootdown for SMP */
 }
+
+#if defined(CONFIG_SMP)
+void z_x86_tlb_ipi(const void *arg)
+{
+	ARG_UNUSED(arg);
+
+	/* For now, just reload CR3 which invalidates the entire TLB.
+	 *
+	 * In the future, we can consider making this smarter, such as
+	 * propagating which page tables were modified (in case they are
+         * not active on this CPU) or an address range to call
+	 * tlb_flush_page() on.
+	 */
+	LOG_DBG("%s on CPU %d\n", __func__, arch_curr_cpu()->id);
+	z_x86_cr3_set(z_x86_cr3_get());
+}
+
+static inline void tlb_shootdown(void)
+{
+	z_loapic_ipi(0, LOAPIC_ICR_IPI_OTHERS, CONFIG_TLB_IPI_VECTOR);
+}
+#endif /* CONFIG_SMP */
 
 static inline void assert_addr_aligned(uintptr_t addr)
 {
