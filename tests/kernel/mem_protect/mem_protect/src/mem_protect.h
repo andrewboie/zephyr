@@ -22,7 +22,6 @@ extern void test_mem_domain_remove_partitions_simple(void);
 extern void test_mem_domain_remove_partitions(void);
 extern void test_mem_domain_api_kernel_thread_only(void);
 extern void test_mem_part_auto_determ_size(void);
-extern void test_mem_part_auto_determ_size_per_mpu(void);
 extern void test_mem_part_inherit_by_child_thr(void);
 extern void test_macros_obtain_names_data_bss(void);
 extern void test_mem_part_assign_bss_vars_zero(void);

@@ -35,9 +35,6 @@ K_APP_BMEM(part1) uint8_t __aligned(MEM_REGION_ALLOC) buf1[MEM_REGION_ALLOC];
 struct k_mem_partition *app1_parts[] = {
 	&part1
 };
-K_APPMEM_PARTITION_DEFINE(part_arch);
-K_APP_BMEM(part_arch) uint8_t __aligned(MEM_REGION_ALLOC) \
-buf_arc[MEM_REGION_ALLOC];
 
 K_APPMEM_PARTITION_DEFINE(part2);
 K_APP_DMEM(part2) int part2_var = 1356;
@@ -651,24 +648,6 @@ void test_mem_part_auto_determ_size(void)
 	 * partition. That will generate fatal error, because user thread not
 	 * allowed to write*/
 	k_mem_domain_add_thread(&domain1, usr_tid0);
-}
-
-/**
- * @brief Test partitions sized per the constraints of the MPU hardware
- *
- * @details
- * - Test that system automatically determine memory partition size according
- *   to the constraints of the platform's MPU hardware.
- * - Different platforms like x86, ARM and ARC have different MPU hardware for
- *   memory management.
- * - That test checks that MPU hardware works as expected and gives for the
- *   memory partition the most suitable and possible size.
- *
- * @ingroup kernel_memprotect_tests
- */
-void test_mem_part_auto_determ_size_per_mpu(void)
-{
-	zassert_true(part_arch.size == MEM_REGION_ALLOC, NULL);
 }
 
 void child_thr_handler(void *p1, void *p2, void *p3)
