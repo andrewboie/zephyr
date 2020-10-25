@@ -20,6 +20,87 @@ LOG_MODULE_DECLARE(os);
 static struct k_spinlock mm_lock;
 
 /*
+ * Physical memory accounting
+ */
+
+/* This page contains critical kernel data or will otherwise never be swapped */
+#define K_PAGE_PINNED		BIT(0)
+
+/* This physical page is reserved by hardware; we will never use it */
+#define K_PAGE_RESERVED		BIT(1)
+
+
+#define K_PAGE_MAPPED		BIT(2)
+
+struct k_page {
+	union {
+		/* Virtual address this page is mapped to */
+		void *addr;
+
+		/* Singly linked list of free pages */
+		sys_snode_t node;
+	};
+
+	/* Flag bits, see K_PAGE_* macros */
+	uint32_t flags;
+};
+
+static bool is_page_pinned(struct k_page *page)
+{
+	return (page->flags & K_PAGE_PINNED) != 0;
+}
+
+static bool is_page_reserved(struct k_page *page)
+{
+	return (page->flags & K_PAGE_RESERVED) != 0;
+}
+
+#define NUM_PAGES (KB(CONFIG_SRAM_SIZE) / CONFIG_MMU_PAGE_SIZE)
+
+static struct k_page pages[NUM_PAGES];
+
+static sys_slist_t page_list;
+
+uintptr_t page_to_phys(struct k_page *page)
+{
+	return (uintptr_t)(page - pages) + CONFIG_SRAM_BASE_ADDRESS;
+}
+
+struct k_page *phys_to_page(uintptr_t phys)
+{
+	return &pages[(phys - CONFIG_SRAM_BASE_ADDRESS) / CONFIG_MMU_PAGE_SIZE];
+}
+
+#define FOREACH_PAGE(_phys, _page) \
+	 for (uintptr_t _phys = CONFIG_SRAM_BASE_ADDRESS, struct k_page *_page = pages; \
+				 _phys < KB(CONFIG_SRAM_SIZE); \
+				 _phys += CONFIG_MMU_PAGE_SIZE, _page++)
+
+static int page_pool_init(struct device *unused)
+{
+	/* TODO: Add an arch interface to query the memory map and mark
+	 * reserved pages. Unlikely to have to do this except on x86.
+	 */
+
+	/* TODO: We need a better ontology of linker symbols for the bounds
+	 * of kernel memory, and need to find out if we need to deal with
+	 * a kernel that is not contiguous in memory
+	 */
+	sys_slist_init(&page_list);
+
+	FOREACH_PAGE(phys, page) {
+		if (phys < (uintptr_t)&_image_ram_start ||
+		    phys >= (uintptr_t)&_image_ram_end) {
+			/* Outside of the kernel. Add to the page pool list */
+			if (!is_pinned(page)) {
+				sys_slist_append(&page_list, &page->node);
+			}
+		}
+	}
+
+}
+
+/*
  * Overall virtual memory map. System RAM is identity-mapped:
  *
  * +--------------+ <- CONFIG_SRAM_BASE_ADDRESS
