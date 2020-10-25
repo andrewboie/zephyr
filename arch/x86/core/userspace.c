@@ -66,11 +66,13 @@ void *z_x86_userspace_prepare_thread(struct k_thread *thread)
 	thread->arch.psp =
 		header->privilege_stack + sizeof(header->privilege_stack);
 
+#ifndef CONFIG_X86_COMMON_PAGE_TABLE
 	/* Important this gets cleared, so that arch_mem_domain_* APIs
 	 * can distinguish between new threads, and threads migrating
 	 * between domains
 	 */
 	thread->arch.ptables = (uintptr_t)NULL;
+#endif /* CONFIG_X86_COMMON_PAGE_TABLE */
 
 	if ((thread->base.user_options & K_USER) != 0U) {
 		initial_entry = arch_user_mode_enter;

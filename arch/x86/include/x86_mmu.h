@@ -174,7 +174,7 @@ extern pentry_t z_x86_kernel_ptables[];
 /* Get the page tables used by this thread during normal execution */
 static inline pentry_t *z_x86_thread_page_tables_get(struct k_thread *thread)
 {
-#ifdef CONFIG_USERSPACE
+#if defined(CONFIG_USERSPACE) && !defined(CONFIG_X86_COMMON_PAGE_TABLE)
 	return (pentry_t *)(thread->arch.ptables);
 #else
 	return z_x86_kernel_ptables;

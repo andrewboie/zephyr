@@ -53,7 +53,7 @@ LOG_MODULE_DECLARE(os);
 /* Protects x86_domain_list and serializes any changes to page tables */
 static struct k_spinlock x86_mmu_lock;
 
-#ifdef CONFIG_USERSPACE
+#if defined(CONFIG_USERSPACE) && !defined(CONFIG_X86_COMMON_PAGE_TABLE)
 /* List of all active and initialized memory domains. This is used to make
  * sure all memory mappings are the same across all page tables when invoking
  * range_map()
@@ -995,7 +995,7 @@ static int range_map(void *virt, uintptr_t phys, size_t size,
 	 * Any new mappings need to be applied to all page tables.
 	 */
 	key = k_spin_lock(&x86_mmu_lock);
-#ifdef CONFIG_USERSPACE
+#if defined(CONFIG_USERSPACE) && !defined(CONFIG_X86_COMMON_PAGE_TABLE)
 	sys_snode_t *node;
 
 	SYS_SLIST_FOR_EACH_NODE(&x86_domain_list, node) {
@@ -1151,7 +1151,106 @@ int arch_buffer_validate(void *addr, size_t size, int write)
 
 	return ret;
 }
+#ifdef CONFIG_X86_COMMON_PAGE_TABLE
+/* Very low memory configuration. A single set of page tables is used for
+ * all threads. This relies on some assumptions:
+ *
+ * - No KPTI. There really is just one set of page tables.
+ * - No SMP. If that were supported, we would need per-core tables.
+ * - Memory domains don't affect supervisor mode.
+ * - All threads have the same virtual-to-physical mappings.
+ * - Memory domain APIs can't be called by user mode.
+ *
+ * Because there is no SMP, only one set of page tables, and user threads can't
+ * modify their own memory domains, we don't set
+ * CONFIG_ARCH_MEM_DOMAIN_SYNCHRONOUS_API, as it is never the case that
+ * a k_mem_domain API call will require an immediate page table update.
+ *
+ * We don't set CONFIG_ARCH_MEM_DOMAIN_DATA either, since we aren't setting
+ * up any arch-specific memory domain data (per domain page tables.)
+ *
+ * This is all nice and simple and saves a lot of memory. The cost is that
+ * context switching is not trivial CR3 update. We have to reset all partitions
+ * for the current domain configuration and then apply all the partitions for
+ * the incoming thread's domain if they are not the same.
+ */
 
+static inline void reset_region(uintptr_t start, size_t size)
+{
+	(void)range_map((void *)start, 0, size, 0, 0,
+			OPTION_FLUSH | OPTION_RESET);
+}
+
+static inline void apply_region(uintptr_t start, size_t size, pentry_t attr)
+{
+	(void)range_map((void *)start, 0, size, attr, MASK_PERM, OPTION_FLUSH);
+}
+
+/* Cache of the current memory domain applied to the common page tables and
+ * the stack buffer region that had User access granted.
+ */
+static struct k_mem_domain *current_domain;
+static uintptr_t current_stack_start;
+static size_t current_stack_size;
+
+void z_x86_swap_update_page_tables(struct k_thread *incoming)
+{
+	struct k_thread *outgoing = _current;
+	k_spinlock_key_t key;
+
+	if ((incoming->base.user_options & K_USER) == 0) {
+		/* Incoming thread is not a user thread. Memory domains don't
+		 * affect supervisor threads and we don't need to enable User
+		 * bits for its stack buffer; do nothing.
+		 */
+		return;
+	}
+
+	if (incoming->stack_info.start != current_stack_start ||
+	    incoming->stack_info.size != current_stack_size) {
+		reset_region(current_stack_start, current_stack_size);
+
+		/* The incoming thread's stack region needs User permissions */
+		apply_region(incoming->stack_info.start,
+			     incoming->stack_info.size,
+			     K_MEM_PARTITION_P_RW_U_RW);
+
+		/* Update cache */
+		current_stack_start = incoming->stack_info.start;
+		current_stack_size = incoming->stack_info.size;
+	}
+
+	key = k_spin_lock(&z_mem_domain_lock);
+	if (incoming->mem_domain_info.mem_domain == current_domain) {
+		/* The incoming thread's domain is already applied */
+		goto out_unlock;
+	}
+
+	/* Reset the current memory domain regions... */
+	for (int i = 0; i < CONFIG_MAX_DOMAIN_PARTITIONS; i++) {
+		struct k_mem_partition *ptn = &current_domain->partitions[i];
+
+		if (ptn->size == 0) {
+			continue;
+		}
+		reset_region(ptn->start, ptn->size);
+	}
+
+	/* ...and apply all the incoming domain's regions */
+	for (int i = 0; i < CONFIG_MAX_DOMAIN_PARTITIONS; i++) {
+		struct k_mem_partition *ptn =
+			&incoming->mem_domain_info.mem_domain->partitions[i];
+
+		if (ptn->size == 0) {
+			continue;
+		}
+		apply_region(ptn->start, ptn->size, ptn->attr);
+	}
+	current_domain = incoming->mem_domain_info.mem_domain;
+out_unlock:
+	k_spin_unlock(&z_mem_domain_lock, key);
+}
+#else
 /**
 *  Duplicate an entire set of page tables
  *
@@ -1421,6 +1520,7 @@ void arch_mem_domain_thread_add(struct k_thread *thread)
 			     thread->stack_info.size);
 	}
 }
+#endif /* CONFIG_X86_COMMON_PAGE_TABLE */
 
 int arch_mem_domain_max_partitions_get(void)
 {

@@ -215,11 +215,13 @@ struct _thread_arch {
 	uint8_t flags;
 
 #ifdef CONFIG_USERSPACE
+#ifndef CONFIG_X86_COMMON_PAGE_TABLE
 	/* Physical address of the page tables used by this thread. Supervisor
 	 * threads always use the kernel's page table, user thread use
 	 * per-thread tables stored in the stack object.
 	 */
 	uintptr_t ptables;
+#endif /* CONFIG_X86_COMMON_PAGE_TABLE */
 
 	/* Track available unused space in the stack object used for building
 	 * thread-specific page tables.
