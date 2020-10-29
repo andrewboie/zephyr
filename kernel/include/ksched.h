@@ -36,7 +36,6 @@ BUILD_ASSERT(K_LOWEST_APPLICATION_THREAD_PRIO
 #define Z_ASSERT_VALID_PRIO(prio, entry_point) __ASSERT((prio) == -1, "")
 #endif
 
-void z_sched_init(void);
 void z_move_thread_to_end_of_prio_q(struct k_thread *thread);
 void z_remove_thread_from_ready_q(struct k_thread *thread);
 int z_is_thread_time_slicing(struct k_thread *thread);

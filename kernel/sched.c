@@ -1130,7 +1130,10 @@ int z_unpend_all(_wait_q_t *wait_q)
 	return need_sched;
 }
 
-void z_sched_init(void)
+/* Base scheduler initialization. Must take place before init attempts to
+ * spawn and switch to the main thread
+ */
+static void sched_init(void *unused)
 {
 #ifdef CONFIG_SCHED_DUMB
 	sys_dlist_init(&_kernel.ready_q.runq);
@@ -1155,6 +1158,8 @@ void z_sched_init(void)
 		CONFIG_TIMESLICE_PRIORITY);
 #endif
 }
+
+SYS_INIT(sched_init, PRE_KERNEL_2, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 
 int z_impl_k_thread_priority_get(k_tid_t thread)
 {
