@@ -90,6 +90,9 @@ SECTIONS
 	SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
 	{
 	_image_text_start = .;
+#ifndef CONFIG_XIP
+	z_mapped_phys_start = ABSOLUTE(.);
+#endif
 
 /* Located in generated directory. This file is populated by calling
  * zephyr_linker_sources(ROM_START ...). This typically contains the vector
@@ -177,6 +180,10 @@ SECTIONS
 	/* RAMABLE_REGION */
 	GROUP_START(RAMABLE_REGION)
 
+#ifdef CONFIG_XIP
+	. = ALIGN(CONFIG_MMU_PAGE_SIZE);
+	z_mapped_phys_start = ABSOLUTE(.);
+#endif
 /* Located in generated directory. This file is populated by the
  * zephyr_linker_sources() Cmake function.
  */
@@ -324,7 +331,7 @@ SECTIONS
 /* Must be last in RAM */
 #include <linker/kobject.ld>
 
-	MMU_PAGE_ALIGN
+	. = ALIGN(CONFIG_MMU_PAGE_SIZE);
 	__data_ram_end = .;
 
 	/* All unused memory also owned by the kernel for heaps */
@@ -334,6 +341,8 @@ SECTIONS
 	_image_ram_end = .;
 	_image_ram_all = (KERNEL_BASE_ADDR + KERNEL_RAM_SIZE) - _image_ram_start;
 
+	z_mapped_phys_end = ABSOLUTE(.);
+	z_mapped_phys_size = z_mapped_phys_end - z_mapped_phys_start;
 	_end = .; /* end of image */
 
 	GROUP_END(RAMABLE_REGION)
