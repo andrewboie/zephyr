@@ -17,6 +17,7 @@
 #include <init.h>
 #include <sys/sem.h>
 
+#ifndef CONFIG_MMU
 #define LIBC_BSS	K_APP_BMEM(z_libc_partition)
 #define LIBC_DATA	K_APP_DMEM(z_libc_partition)
 
@@ -37,15 +38,6 @@ MALLOC_BSS static unsigned char __aligned(CONFIG_NEWLIB_LIBC_ALIGNED_HEAP_SIZE)
 #define USED_RAM_END_ADDR   POINTER_TO_UINT(&_end)
 
 #ifdef Z_MALLOC_PARTITION_EXISTS
-/* Need to be able to program a memory protection region from HEAP_BASE
- * to the end of RAM so that user threads can get at it.
- * Implies that the base address needs to be suitably aligned since the
- * bounds have to go in a k_mem_partition.
- */
-#ifdef CONFIG_MMU
-/* Linker script may already have done this, but just to be safe */
-#define HEAP_BASE	ROUND_UP(USED_RAM_END_ADDR, CONFIG_MMU_PAGE_SIZE)
-#else /* MPU-based systems */
 /* TODO: Need a generic Kconfig for the MPU region granularity */
 #if defined(CONFIG_ARM)
 #define HEAP_BASE	ROUND_UP(USED_RAM_END_ADDR, \
@@ -55,33 +47,18 @@ MALLOC_BSS static unsigned char __aligned(CONFIG_NEWLIB_LIBC_ALIGNED_HEAP_SIZE)
 #else
 #error "Unsupported platform"
 #endif /* CONFIG_<arch> */
-#endif /* !CONFIG_MMU */
 #else /* !Z_MALLOC_PARTITION_EXISTS */
 /* No partition, heap can just start wherever _end is */
 #define HEAP_BASE	USED_RAM_END_ADDR
 #endif /* Z_MALLOC_PARTITION_EXISTS */
 
-#ifdef CONFIG_MMU
-/* Currently a placeholder, we're just setting up all unused RAM pages
- * past the end of the kernel as the heap arena. SRAM_BASE_ADDRESS is
- * a physical address so we can't use that.
- *
- * Later, we should do this much more like other VM-enabled operating systems:
- * - Set up a core kernel ontology of free physical pages
- * - Allow anonymous memoory mappings drawing from the pool of free physical
- *   pages
- * - Have _sbrk() map anonymous pages into the heap arena as needed
- * - See: https://github.com/zephyrproject-rtos/zephyr/issues/29526
- */
-#define MAX_HEAP_SIZE	(CONFIG_KERNEL_RAM_SIZE - (HEAP_BASE - \
-						   CONFIG_KERNEL_VM_BASE))
-#elif defined(CONFIG_XTENSA)
+#if defined(CONFIG_XTENSA)
 extern void *_heap_sentry;
 #define MAX_HEAP_SIZE	(POINTER_TO_UINT(&_heap_sentry) - HEAP_BASE)
 #else
 #define MAX_HEAP_SIZE	(KB(CONFIG_SRAM_SIZE) - (HEAP_BASE - \
 						 CONFIG_SRAM_BASE_ADDRESS))
-#endif /* CONFIG_MMU */
+#endif /* CONFIG_XTENSA */
 
 #if Z_MALLOC_PARTITION_EXISTS
 struct k_mem_partition z_malloc_partition;
@@ -101,6 +78,7 @@ SYS_INIT(malloc_prepare, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 #endif /* CONFIG_NEWLIB_LIBC_ALIGNED_HEAP_SIZE */
 
 LIBC_BSS static unsigned int heap_sz;
+#endif /* !CONFIG_MMU */
 
 static int _stdout_hook_default(int c)
 {
@@ -246,6 +224,20 @@ __weak void _exit(int status)
 	}
 }
 
+#ifdef CONFIG_MMU
+void *_sbrk(int count)
+{
+	void *prev;
+	int ret;
+
+	ret = z_sbrk(count, &prev);
+	if (ret != 0) {
+		errno = ENOMEM;
+		prev = (void *)-1;
+	}
+	return prev;
+}
+#else
 static LIBC_DATA SYS_SEM_DEFINE(heap_sem, 1, 1);
 
 void *_sbrk(int count)
@@ -273,6 +265,7 @@ void *_sbrk(int count)
 
 	return ret;
 }
+#endif /* !CONFIG_MMU */
 __weak FUNC_ALIAS(_sbrk, sbrk, void *);
 
 __weak int *__errno(void)
