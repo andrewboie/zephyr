@@ -170,3 +170,5 @@ static inline void z_mem_assert_virtual_region(void *addr, size_t size)
 	     _phys += CONFIG_MMU_PAGE_SIZE, _pageframe++)
 
 #define Z_VM_RESERVED	0
+
+#endif /* KERNEL_INCLUDE_MMU_H */
