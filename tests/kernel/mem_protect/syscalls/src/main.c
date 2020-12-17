@@ -7,6 +7,7 @@
 #include <zephyr.h>
 #include <syscall_handler.h>
 #include <ztest.h>
+#include <linker/linker-defs.h>
 #include "test_syscalls.h"
 
 #define BUF_SIZE	32
@@ -16,8 +17,8 @@
 	|| defined(CONFIG_BOARD_NUCLEO_L073RZ)
 #define FAULTY_ADDRESS 0x0FFFFFFF
 #elif CONFIG_MMU
-/* Just past the permanent RAM mapping should be a non-present page */
-#define FAULTY_ADDRESS (CONFIG_KERNEL_VM_BASE + CONFIG_KERNEL_RAM_SIZE)
+/* Just past the zephyr image mapping should be a non-present page */
+#define FAULTY_ADDRESS ((uint8_t *)(&z_mapped_end))
 #else
 #define FAULTY_ADDRESS 0xFFFFFFF0
 #endif
@@ -219,6 +220,7 @@ void test_string_nlen(void)
 	defined(CONFIG_SOC_EMSK_EM7D) || \
 	(defined(CONFIG_CPU_CORTEX_M) && \
 		defined(CONFIG_TRUSTED_EXECUTION_NONSECURE)))
+	printk("write to bad memory address at %p\n", FAULTY_ADDRESS);
 	/* Try to blow up the kernel */
 	ret = string_nlen((char *)FAULTY_ADDRESS, BUF_SIZE, &err);
 	zassert_equal(err, -1, "nonsense string address did not fault");
