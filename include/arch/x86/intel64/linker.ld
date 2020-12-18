@@ -118,8 +118,6 @@ SECTIONS
 	KEEP(*("._mmu_region.static.*"))
 	_mmu_region_list_end = .;
 #endif /* CONFIG_X86_MMU */
-
-	#include <linker/kobject-rom.ld>
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
 #include <linker/cplusplus-rom.ld>
@@ -143,13 +141,27 @@ SECTIONS
 	_app_smem_num_words = _app_smem_size >> 2;
 #endif /* CONFIG_USERSPACE */
 
-	SECTION_PROLOGUE(_BSS_SECTION_NAME, (NOLOAD), ALIGN(16))
+	SECTION_PROLOGUE(_DATA_SECTION_NAME,,ALIGN(16))
 	{
 	MMU_PAGE_ALIGN_PERM
 #ifndef CONFIG_USERSPACE
 	_image_ram_start = .;
 #endif
 	__kernel_ram_start = .;
+	*(.data)
+	*(.data.*)
+	#include <snippets-rwdata.ld>
+	#include <linker/kobject.ld>
+	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+
+#include <snippets-sections.ld>
+#include <snippets-ram-sections.ld>
+#include <linker/common-ram.ld>
+#include <linker/cplusplus-ram.ld>
+#include <arch/x86/pagetables.ld>
+
+	SECTION_PROLOGUE(_BSS_SECTION_NAME, (NOLOAD), ALIGN(16))
+	{
 	__bss_start = .;
 	*(.bss)
 	*(.bss.*)
@@ -162,32 +174,13 @@ SECTIONS
 
 #include <linker/common-noinit.ld>
 
-#include <snippets-sections.ld>
-
-	SECTION_PROLOGUE(_DATA_SECTION_NAME,,ALIGN(16))
-	{
-	*(.data)
-	*(.data.*)
-	#include <snippets-rwdata.ld>
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-
-#include <snippets-ram-sections.ld>
-#include <linker/common-ram.ld>
-#include <linker/cplusplus-ram.ld>
-#include <arch/x86/pagetables.ld>
-
-/* Must be last in RAM */
-#include <linker/kobject.ld>
 	MMU_PAGE_ALIGN
 	_image_ram_end = .;
-	z_mapped_end = .;
 	_end = .;
 
 	/* All unused memory also owned by the kernel for heaps */
 	__kernel_ram_end = KERNEL_BASE_ADDR + KERNEL_RAM_SIZE;
 	__kernel_ram_size = __kernel_ram_end - __kernel_ram_start;
-
-	z_mapped_size = z_mapped_end - z_mapped_start;
 
 #include <linker/debug-sections.ld>
 

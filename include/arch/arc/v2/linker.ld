@@ -148,6 +148,34 @@ SECTIONS {
 	_app_smem_rom_start = LOADADDR(_APP_SMEM_SECTION_NAME);
 #endif /* CONFIG_USERSPACE */
 
+	SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,) {
+
+/* when XIP, .text is in ROM, but vector table must be at start of .data */
+		__data_ram_start = .;
+		*(".data")
+		*(".data.*")
+		*(".kernel.*")
+
+/* Located in generated directory. This file is populated by the
+ * zephyr_linker_sources() Cmake function.
+ */
+#include <snippets-rwdata.ld>
+#include <linker/kobject.ld>
+
+	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+
+	__data_rom_start = LOADADDR(_DATA_SECTION_NAME);
+
+#include <linker/common-ram.ld>
+
+#ifdef __MWDT_LINKER_CMD__
+/* TODO: add mwdt specific RAM C++ sections */
+#else
+#include <linker/cplusplus-ram.ld>
+#endif /* __MWDT_LINKER_CMD__ */
+
+	__data_ram_end = .;
+
 	SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD),) {
 		MPU_MIN_SIZE_ALIGN
 		/*
@@ -172,33 +200,6 @@ SECTIONS {
 
 #include <linker/common-noinit.ld>
 
-	SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,) {
-
-/* when XIP, .text is in ROM, but vector table must be at start of .data */
-		__data_ram_start = .;
-		*(".data")
-		*(".data.*")
-		*(".kernel.*")
-
-/* Located in generated directory. This file is populated by the
- * zephyr_linker_sources() Cmake function.
- */
-#include <snippets-rwdata.ld>
-
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-
-	__data_rom_start = LOADADDR(_DATA_SECTION_NAME);
-
-#include <linker/common-ram.ld>
-#include <linker/kobject.ld>
-
-#ifdef __MWDT_LINKER_CMD__
-/* TODO: add mwdt specific RAM C++ sections */
-#else
-#include <linker/cplusplus-ram.ld>
-#endif /* __MWDT_LINKER_CMD__ */
-
-	__data_ram_end = .;
 	MPU_MIN_SIZE_ALIGN
 	/* Define linker symbols */
 	_image_ram_end = .;

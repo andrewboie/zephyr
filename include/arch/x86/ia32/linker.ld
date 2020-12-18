@@ -159,8 +159,6 @@ SECTIONS
  * zephyr_linker_sources() Cmake function.
  */
 #include <snippets-rodata.ld>
-
-#include <linker/kobject-rom.ld>
 	} GROUP_LINK_IN(ROMABLE_REGION)
 
 #include <linker/cplusplus-rom.ld>
@@ -185,15 +183,11 @@ SECTIONS
 	}
 	/* RAMABLE_REGION */
 	GROUP_START(RAMABLE_REGION)
-
+	_image_ram_start = .;
 #ifdef CONFIG_XIP
 	MMU_PAGE_ALIGN
 	z_mapped_start = .;
 #endif
-/* Located in generated directory. This file is populated by the
- * zephyr_linker_sources() Cmake function.
- */
-#include <snippets-ram-sections.ld>
 
 #ifdef CONFIG_USERSPACE
 	/* APP SHARED MEMORY REGION */
@@ -201,7 +195,6 @@ SECTIONS
 #define APP_SHARED_ALIGN  MMU_PAGE_ALIGN_PERM
 
 #include <app_smem.ld>
-
 	_image_ram_start = _app_smem_start;
 	_app_smem_size = _app_smem_end - _app_smem_start;
 	_app_smem_num_words = _app_smem_size >> 2;
@@ -209,43 +202,11 @@ SECTIONS
 	_app_smem_num_words = _app_smem_size >> 2;
 #endif /* CONFIG_USERSPACE */
 
-	SECTION_PROLOGUE(_BSS_SECTION_NAME, (NOLOAD),)
-	{
-	MMU_PAGE_ALIGN_PERM
-#if !defined(CONFIG_USERSPACE)
-	_image_ram_start = .;
-#endif
-	/*
-	 * For performance, BSS section is forced to be both 4 byte aligned and
-	 * a multiple of 4 bytes.
-	 */
-	. = ALIGN(4);
-	__kernel_ram_start = .;
-	__bss_start = .;
-
-	*(.bss)
-	*(".bss.*")
-	*(COMMON)
-	*(".kernel_bss.*")
-
-	/*
-	 * As memory is cleared in words only, it is simpler to ensure the BSS
-	 * section ends on a 4 byte boundary. This wastes a maximum of 3 bytes.
-	 */
-	. = ALIGN(4);
-	__bss_end = .;
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
-
-	__bss_num_words	= (__bss_end - __bss_start) >> 2;
-
-#include <linker/common-noinit.ld>
-
-	MMU_PAGE_ALIGN_PERM
-
 	SECTION_DATA_PROLOGUE(_DATA_SECTION_NAME,,)
 	{
-
+	MMU_PAGE_ALIGN_PERM
 	__data_ram_start = .;
+	__kernel_ram_start = .;
 
 	*(.data)
 	*(".data.*")
@@ -324,21 +285,47 @@ SECTIONS
 	ASSERT(z_shared_kernel_page_end - z_shared_kernel_page_start == 4096,
 	       "shared kernel area is not one memory page");
 #endif /* CONFIG_X86_KPTI */
-
+#include <linker/kobject.ld>
 	. = ALIGN(4);
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
 	__data_rom_start = LOADADDR(_DATA_SECTION_NAME);
 
+/* Located in generated directory. This file is populated by the
+ * zephyr_linker_sources() Cmake function.
+ */
+#include <snippets-ram-sections.ld>
 #include <linker/common-ram.ld>
 #include <linker/cplusplus-ram.ld>
 #include <arch/x86/pagetables.ld>
-
-/* Must be last in RAM */
-#include <linker/kobject.ld>
-
-	MMU_PAGE_ALIGN
 	__data_ram_end = .;
+
+	SECTION_PROLOGUE(_BSS_SECTION_NAME, (NOLOAD),)
+	{
+	/*
+	 * For performance, BSS section is forced to be both 4 byte aligned and
+	 * a multiple of 4 bytes.
+	 */
+	. = ALIGN(4);
+
+	__bss_start = .;
+
+	*(.bss)
+	*(".bss.*")
+	*(COMMON)
+	*(".kernel_bss.*")
+
+	/*
+	 * As memory is cleared in words only, it is simpler to ensure the BSS
+	 * section ends on a 4 byte boundary. This wastes a maximum of 3 bytes.
+	 */
+	. = ALIGN(4);
+	__bss_end = .;
+	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
+
+	__bss_num_words	= (__bss_end - __bss_start) >> 2;
+
+#include <linker/common-noinit.ld>
 
 	/* All unused memory also owned by the kernel for heaps */
 	__kernel_ram_end = KERNEL_BASE_ADDR + KERNEL_RAM_SIZE;
@@ -347,8 +334,6 @@ SECTIONS
 	_image_ram_end = .;
 	_image_ram_all = (KERNEL_BASE_ADDR + KERNEL_RAM_SIZE) - _image_ram_start;
 
-	z_mapped_end = .;
-	z_mapped_size = z_mapped_end - z_mapped_start;
 	_end = .; /* end of image */
 
 	GROUP_END(RAMABLE_REGION)
@@ -371,8 +356,6 @@ SECTIONS
 	KEEP(*(.gnu.linkonce.intList.*))
 	}
 #endif
-
-
 
 /* Located in generated directory. This file is populated by the
  * zephyr_linker_sources() Cmake function.
