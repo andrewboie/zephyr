@@ -354,6 +354,18 @@ out:
 	return dst;
 }
 
+size_t k_mem_free_get(void)
+{
+	size_t ret;
+	k_spinlock_key_t key;
+
+	key = k_spin_lock(&z_mm_lock);
+	ret = z_free_page_count;
+	k_spin_unlock(&z_mm_lock, key);
+
+	return ret * CONFIG_MMU_PAGE_SIZE;
+}
+
 void z_phys_map(uint8_t **virt_ptr, uintptr_t phys, size_t size, uint32_t flags)
 {
 	uintptr_t aligned_phys, addr_offset;
