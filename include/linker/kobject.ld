@@ -5,6 +5,7 @@
  */
 
 #ifdef CONFIG_USERSPACE
+	z_kobject_data_begin = .;
 	/* Constraints:
          *
          * - changes to the size of this section between build phases
@@ -48,4 +49,5 @@
 	z_priv_stacks_ram_end = .;
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 #endif /* CONFIG_GEN_PRIV_STACKS */
+	_kobject_data_end = .;
 #endif /* CONFIG_USERSPACE */
